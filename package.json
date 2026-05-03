@@ -1,0 +1,21 @@
+{
+  "name": "working-mom-dad-api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Working Mom Dad — domain API · chatbot · LLM gateway (NestJS + Prisma)",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "build": "echo 'TODO: nest build'",
+    "start": "echo 'TODO: nest start'",
+    "start:dev": "echo 'TODO: nest start --watch'",
+    "lint": "echo 'TODO: eslint'",
+    "test": "echo 'TODO: jest'",
+    "prisma:generate": "echo 'TODO: prisma generate'",
+    "prisma:migrate:dev": "echo 'TODO: prisma migrate dev'",
+    "prisma:migrate:deploy": "echo 'TODO: prisma migrate deploy'"
+  }
+}
