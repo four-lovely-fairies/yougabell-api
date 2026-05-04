@@ -41,3 +41,10 @@ coverage
 # misc
 *.pem
 .cache
+
+# --- Project additions ---
+.idea
+.pnpm-store
+
+# Allow committing the env example
+!.env.example

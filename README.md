@@ -35,8 +35,8 @@ pnpm start:dev
 
 TBD (후보: Fly.io 도쿄 리전 — Supabase와 동일 리전)
 
-## 관련 문서
+## 관련 문서 (이 레포 anchor)
 
-- 워크스페이스 큰 그림: [`../CLAUDE.md`](../CLAUDE.md)
-- 레포 전략: [`../docs/design/00-repo-strategy.md`](../docs/design/00-repo-strategy.md)
-- 도메인 스키마: [`../docs/schema/`](../docs/schema/)
+- 레포 전략: [`docs/design/00-repo-strategy.md`](./docs/design/00-repo-strategy.md)
+- 도메인 스키마 11개: [`docs/schema/`](./docs/schema/)
+- 워크스페이스 인덱스: [`../CLAUDE.md`](../CLAUDE.md) (로컬, git 미관리)
