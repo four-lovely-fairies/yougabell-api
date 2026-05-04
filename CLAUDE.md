@@ -18,12 +18,12 @@
 - **OpenAPI**: `@nestjs/swagger`로 스펙 자동 export. 빌드 산출물 또는 `/openapi.json` 노출.
 - **챗봇**: SSE 스트리밍 사용. 카드 단위 chunking.
 
-## 디렉토리 (예정)
+## 디렉토리 (예정, src 없는 형식)
 
 ```
-src/
-├── app.module.ts
+.
 ├── main.ts
+├── app.module.ts
 ├── common/          # guards, filters, interceptors
 ├── auth/            # Supabase JWT 검증
 ├── users/
@@ -33,9 +33,10 @@ src/
 ├── mental-care/
 ├── chat/            # LLM 호출 + 스트리밍
 ├── reports/         # 주간 리포트 배치
-└── content/         # ImprovementTip, InspirationQuote
-prisma/
-└── schema.prisma
+├── content/         # ImprovementTip, InspirationQuote
+├── prisma/
+│   └── schema.prisma
+└── test/            # e2e 테스트만 (unit 테스트는 모듈 옆 *.spec.ts)
 ```
 
 ## 환경 변수
