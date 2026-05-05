@@ -1,59 +1,6 @@
-# working-mom-dad-api
+# working-mom-dad-api — Claude Code
 
-> 도메인 API · 챗봇 · LLM 게이트웨이.
-> 워크스페이스 전체 컨벤션은 [`../CLAUDE.md`](../CLAUDE.md), 글로벌은 `~/.claude/CLAUDE.md` 참조.
+> Universal agent rules (Codex, Claude Code, Cursor 등 공용) live in [`AGENTS.md`](./AGENTS.md).
+> Claude Code는 이 파일의 `@AGENTS.md` import로 그 내용을 컨텍스트에 포함합니다.
 
-## 스택
-
-- NestJS 11 + **Prisma 7** + `@prisma/adapter-pg`
-- Supabase Postgres (`DATABASE_URL` 6543 pooled / `DIRECT_URL` 5432 direct for migrations)
-- TypeScript strict
-- pnpm, Node 24 LTS
-
-### Prisma 7 — 핵심 차이점 (5/6에서 옮겼다면 주의)
-
-- `schema.prisma`의 `datasource`는 **`provider`만 가짐** — `url`, `directUrl` 모두 제거됨
-- 연결 URL은 **`prisma.config.ts`** 에 위치:
-  - `datasource.url` ← `DIRECT_URL` (마이그레이션용 직접 연결)
-  - 런타임 쿼리는 schema의 datasource를 안 봄
-- 런타임은 **driver adapter 필수**:
-  - `PrismaService`가 `new PrismaPg({ connectionString: process.env.DATABASE_URL })` 어댑터를 PrismaClient에 주입
-  - 풀링은 `pg` 라이브러리가 처리
-
-## 핵심 원칙
-
-- **DB 단독 소유**: Prisma 스키마는 이 레포에만 둔다. 다른 레포는 OpenAPI 코드젠으로 타입을 받는다.
-- **마이그레이션 마스터**: 모든 DDL은 `prisma migrate`로. Supabase 콘솔 직접 SQL 금지.
-- **Auth Guard**: Supabase JWT를 `JWT_SECRET`으로 검증. `User` 도메인 행은 첫 호출 시 lazy-create.
-- **OpenAPI**: `@nestjs/swagger`로 스펙 자동 export. 빌드 산출물 또는 `/openapi.json` 노출.
-- **챗봇**: SSE 스트리밍 사용. 카드 단위 chunking.
-
-## 디렉토리 (예정, src 없는 형식)
-
-```
-.
-├── main.ts
-├── app.module.ts
-├── common/          # guards, filters, interceptors
-├── auth/            # Supabase JWT 검증
-├── users/
-├── children/
-├── missions/
-├── mental-battery/
-├── mental-care/
-├── chat/            # LLM 호출 + 스트리밍
-├── reports/         # 주간 리포트 배치
-├── content/         # ImprovementTip, InspirationQuote
-└── prisma/
-    └── schema.prisma
-```
-
-> 테스트는 **unit 테스트만** — 각 모듈 옆 `*.spec.ts`. e2e 테스트 도입 시점에 별도 디렉토리/설정 추가.
-
-## 환경 변수
-
-`.env.example` 참조. 운영 환경(dev/staging/prod)별 Supabase 프로젝트 분리.
-
-## 호스팅
-
-TBD — Fly.io 도쿄 리전 후보.
+@AGENTS.md
