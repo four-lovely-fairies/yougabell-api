@@ -1,0 +1,557 @@
+// Working Mom Dad — domain schema
+// Source: ../docs/schema/01..10
+// Convention: tables-only (no JSON columns) except MessageCard.actionPayload (polymorphic)
+// IDs: UUID v4 (User.id matches Supabase auth.users.id — not auto-generated)
+// Numeric ratings 1..5 enforced at app level; raw SQL CHECK constraints can be added in a future migration
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// User & Auth
+// ============================================================
+
+model User {
+  id                    String   @id @db.Uuid // = Supabase auth.users.id (lazy-create on first authed request)
+  name                  String
+  birthDate             DateTime @db.Date
+  gender                Gender
+  weekdayHoursWithChild Float?
+  weekendHoursWithChild Float?
+  parentingStyleId      String? // future — see docs/schema/10-parenting-style.md
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  children             Child[]
+  pushTokens           UserPushToken[]
+  batteryChecks        MentalBatteryCheck[]
+  missionExecutions    MissionExecution[]
+  mentalCareExecutions MentalCareExecution[]
+  chatSessions         ChatSession[]
+  weeklyReports        WeeklyReport[]
+}
+
+enum Gender {
+  female
+  male
+}
+
+model UserPushToken {
+  id        String       @id @default(uuid()) @db.Uuid
+  userId    String       @db.Uuid
+  deviceId  String
+  token     String
+  platform  PushPlatform
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+}
+
+enum PushPlatform {
+  ios
+  android
+  web
+}
+
+// ============================================================
+// Child
+// ============================================================
+
+model Child {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  name         String
+  birthDate    DateTime @db.Date
+  gender       Gender
+  notes        String?  @default("없음")
+  avatarUrl    String?
+  displayOrder Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  missionExecutions MissionExecution[]
+  weeklyReports     WeeklyReport[]
+
+  @@index([userId])
+}
+
+// ============================================================
+// Mental Battery & Care
+// ============================================================
+
+model MentalBatteryCheck {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  level     Int // 1..5 (1=고갈, 2=조금 힘듦, 3=중간, 4=조금 좋음, 5=최고예요) — app-level validation
+  checkedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  user                User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recommendations     BatteryCheckRecommendation[]
+  triggeredExecutions MentalCareExecution[]
+
+  @@index([userId, checkedAt])
+}
+
+model BatteryCheckRecommendation {
+  id             String   @id @default(uuid()) @db.Uuid
+  batteryCheckId String   @db.Uuid
+  categoryId     String
+  rank           Int
+  createdAt      DateTime @default(now())
+
+  batteryCheck MentalBatteryCheck @relation(fields: [batteryCheckId], references: [id], onDelete: Cascade)
+  category     MentalCareCategory @relation(fields: [categoryId], references: [id])
+
+  @@unique([batteryCheckId, categoryId])
+  @@index([batteryCheckId])
+}
+
+model MentalCareCategory {
+  id           String  @id // slug: bare-hand-5min, refresh-deep-dive, ...
+  emoji        String
+  name         String
+  description  String?
+  displayOrder Int
+
+  contents        MentalCareContent[]
+  recommendations BatteryCheckRecommendation[]
+}
+
+model MentalCareContent {
+  id              String   @id @default(uuid()) @db.Uuid
+  categoryId      String
+  prompt          String
+  durationMinutes Int      @default(5)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category   MentalCareCategory    @relation(fields: [categoryId], references: [id])
+  executions MentalCareExecution[]
+
+  @@index([categoryId])
+}
+
+model MentalCareExecution {
+  id                    String           @id @default(uuid()) @db.Uuid
+  userId                String           @db.Uuid
+  batteryCheckId        String?          @db.Uuid
+  contentId             String           @db.Uuid
+  status                MentalCareStatus
+  startedAt             DateTime         @default(now())
+  completedAt           DateTime?
+  actualDurationSeconds Int?
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batteryCheck MentalBatteryCheck? @relation(fields: [batteryCheckId], references: [id])
+  content      MentalCareContent   @relation(fields: [contentId], references: [id])
+
+  @@index([userId, startedAt])
+  @@index([contentId])
+}
+
+enum MentalCareStatus {
+  in_progress
+  paused
+  completed
+  early_completed
+}
+
+// ============================================================
+// Roadmap (MilestoneCategory, Milestone, GrowthStage, PeerInsight)
+// ============================================================
+
+model MilestoneCategory {
+  id           String @id // slug: emotion, education, sleep, food, health, play
+  label        String
+  iconKey      String
+  color        String
+  displayOrder Int
+
+  milestones Milestone[]
+  missions   Mission[]
+}
+
+model Milestone {
+  id            String   @id @default(uuid()) @db.Uuid
+  categoryId    String
+  ageMonthsFrom Int
+  ageMonthsTo   Int
+  title         String?
+  description   String
+  displayOrder  Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  category MilestoneCategory @relation(fields: [categoryId], references: [id])
+  sources  MilestoneSource[]
+
+  @@index([categoryId, ageMonthsFrom, ageMonthsTo])
+}
+
+model MilestoneSource {
+  id          String  @id @default(uuid()) @db.Uuid
+  milestoneId String  @db.Uuid
+  citation    String // "CDC", "AAP", "국민건강보험", "보건복지부"
+  url         String?
+  note        String?
+
+  milestone Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@index([milestoneId])
+}
+
+model GrowthStage {
+  id            String @id // slug: self-formation, ...
+  name          String
+  ageMonthsFrom Int
+  ageMonthsTo   Int
+  summary       String
+
+  // self-referential N:M for sideTagIds (other GrowthStages shown as side chips)
+  sideTags GrowthStageSideTag[] @relation("GrowthStageOwner")
+  taggedBy GrowthStageSideTag[] @relation("GrowthStageSideTag")
+}
+
+model GrowthStageSideTag {
+  growthStageId String
+  sideTagId     String
+  rank          Int
+
+  growthStage GrowthStage @relation("GrowthStageOwner", fields: [growthStageId], references: [id], onDelete: Cascade)
+  sideTag     GrowthStage @relation("GrowthStageSideTag", fields: [sideTagId], references: [id])
+
+  @@id([growthStageId, sideTagId])
+}
+
+model PeerInsight {
+  id            String   @id @default(uuid()) @db.Uuid
+  ageMonthsFrom Int
+  ageMonthsTo   Int
+  text          String
+  statPercent   Int? // 0..100
+  createdAt     DateTime @default(now())
+
+  @@index([ageMonthsFrom, ageMonthsTo])
+}
+
+// ============================================================
+// Mission
+// ============================================================
+
+model Mission {
+  id                      String   @id @default(uuid()) @db.Uuid
+  categoryId              String
+  title                   String
+  shortTitle              String
+  description             String
+  durationMinutes         Int
+  effect                  String
+  subThemeLabel           String?
+  recommendedAgeMonthsMin Int?
+  recommendedAgeMonthsMax Int?
+  thumbnailUrl            String?
+  videoUrl                String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  category   MilestoneCategory  @relation(fields: [categoryId], references: [id])
+  tags       MissionTag[]
+  executions MissionExecution[]
+
+  @@index([categoryId, recommendedAgeMonthsMin, recommendedAgeMonthsMax])
+}
+
+model MissionTag {
+  id        String @id @default(uuid()) @db.Uuid
+  missionId String @db.Uuid
+  tag       String
+
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@unique([missionId, tag])
+  @@index([tag])
+}
+
+model MissionExecution {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  userId                String                 @db.Uuid
+  childId               String                 @db.Uuid
+  missionId             String                 @db.Uuid
+  status                MissionExecutionStatus
+  startedAt             DateTime               @default(now())
+  completedAt           DateTime?
+  actualDurationSeconds Int?
+  wasEarlyCompleted     Boolean                @default(false)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  child    Child            @relation(fields: [childId], references: [id], onDelete: Cascade)
+  mission  Mission          @relation(fields: [missionId], references: [id])
+  feedback MissionFeedback?
+
+  @@index([userId, startedAt])
+  @@index([childId, startedAt])
+  @@index([missionId])
+}
+
+enum MissionExecutionStatus {
+  in_progress
+  paused
+  completed
+  early_completed
+  cancelled
+}
+
+model MissionFeedback {
+  id                  String   @id @default(uuid()) @db.Uuid
+  executionId         String   @unique @db.Uuid
+  childReaction       Int // 1..5 — app-level validation
+  parentEnergy        Int // 1..5
+  missionSatisfaction Int // 1..5
+  note                String?
+  createdAt           DateTime @default(now())
+
+  execution MissionExecution         @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  keywords  MissionFeedbackKeyword[]
+}
+
+model MissionFeedbackKeyword {
+  id         String @id @default(uuid()) @db.Uuid
+  feedbackId String @db.Uuid
+  rank       Int
+  keyword    String
+
+  feedback MissionFeedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+
+  @@unique([feedbackId, rank])
+  @@index([keyword])
+}
+
+// ============================================================
+// Chat
+// ============================================================
+
+model ChatSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @db.Uuid
+  role      ChatRole
+  content   String
+  sentAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  session     ChatSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  cards       MessageCard[]
+  sourceLinks SourceLink[]
+  tags        ChatMessageTag[]
+
+  @@index([sessionId, sentAt])
+}
+
+enum ChatRole {
+  user
+  assistant
+}
+
+model ChatMessageTag {
+  id        String @id @default(uuid()) @db.Uuid
+  messageId String @db.Uuid
+  tag       String
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, tag])
+  @@index([tag])
+}
+
+model MessageCard {
+  id            String      @id @default(uuid()) @db.Uuid
+  messageId     String      @db.Uuid
+  order         Int
+  title         String
+  body          String
+  actionType    CardAction?
+  actionPayload Json? // ⚠️ polymorphic by actionType — only JSON column in this schema
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, order])
+}
+
+enum CardAction {
+  none
+  start_mission
+  open_link
+  follow_up
+}
+
+model SourceLink {
+  id        String  @id @default(uuid()) @db.Uuid
+  messageId String  @db.Uuid
+  url       String
+  domain    String
+  title     String?
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+// ============================================================
+// Weekly Report
+// ============================================================
+
+model WeeklyReport {
+  id                          String   @id @default(uuid()) @db.Uuid
+  userId                      String   @db.Uuid
+  childId                     String   @db.Uuid
+  weekStart                   DateTime @db.Date // Monday
+  weekEnd                     DateTime @db.Date // Sunday
+  headline                    String
+  totalMissionDurationSeconds Int      @default(0)
+  childPositiveReactionRate   Float // 0..1
+  bestMomentTitle             String?
+  bestMomentBody              String?
+  psychologicalEnergy         Int // 0..100
+  aiActionSuggestion          String
+  generatedAt                 DateTime
+  createdAt                   DateTime @default(now())
+
+  user            User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  child           Child                        @relation(fields: [childId], references: [id], onDelete: Cascade)
+  days            WeeklyReportDay[]
+  topKeywords     WeeklyReportKeyword[]
+  improvementTips WeeklyReportImprovementTip[]
+
+  @@unique([childId, weekStart])
+  @@index([userId, weekStart])
+}
+
+model WeeklyReportDay {
+  id             String  @id @default(uuid()) @db.Uuid
+  reportId       String  @db.Uuid
+  weekday        Weekday
+  completedCount Int     @default(0)
+
+  report WeeklyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, weekday])
+}
+
+enum Weekday {
+  mon
+  tue
+  wed
+  thu
+  fri
+  sat
+  sun
+}
+
+model WeeklyReportKeyword {
+  id       String @id @default(uuid()) @db.Uuid
+  reportId String @db.Uuid
+  rank     Int // 1..3
+  keyword  String
+
+  report WeeklyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, rank])
+}
+
+model WeeklyReportImprovementTip {
+  reportId String @db.Uuid
+  tipId    String @db.Uuid
+  rank     Int
+
+  report WeeklyReport   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  tip    ImprovementTip @relation(fields: [tipId], references: [id])
+
+  @@id([reportId, tipId])
+  @@index([tipId])
+}
+
+// ============================================================
+// Content (ImprovementTip, InspirationQuote)
+// ============================================================
+
+model ImprovementTip {
+  id           String   @id @default(uuid()) @db.Uuid
+  category     String // "리프레쉬" 등
+  headline     String
+  quote        String?
+  displayOrder Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  items         ImprovementTipItem[]
+  weeklyReports WeeklyReportImprovementTip[]
+
+  @@index([category])
+}
+
+model ImprovementTipItem {
+  id        String  @id @default(uuid()) @db.Uuid
+  tipId     String  @db.Uuid
+  rank      Int
+  title     String
+  body      String
+  iconEmoji String?
+
+  tip ImprovementTip @relation(fields: [tipId], references: [id], onDelete: Cascade)
+
+  @@unique([tipId, rank])
+}
+
+model InspirationQuote {
+  id        String   @id @default(uuid()) @db.Uuid
+  text      String
+  author    String?
+  createdAt DateTime @default(now())
+
+  tags InspirationQuoteTag[]
+}
+
+model InspirationQuoteTag {
+  id      String @id @default(uuid()) @db.Uuid
+  quoteId String @db.Uuid
+  tag     String
+
+  quote InspirationQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@unique([quoteId, tag])
+  @@index([tag])
+}
+
+// ============================================================
+// Future (not implemented yet — see docs/schema/10-parenting-style.md)
+// ============================================================
+// model ParentingStyle           — id (enum), emoji, title, subtitle, description, traits, advice
+// model AssessmentQuestion       — id, order, question
+// model AssessmentChoice         — id, questionId, label, styleWeight (Json)
+// model UserParentingAssessment  — userId, source, answers, inferenceMeta, resultStyleId, assessedAt
+// User.parentingStyleId column above is reserved for the eventual FK.

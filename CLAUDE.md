@@ -5,10 +5,12 @@
 
 ## 스택
 
-- NestJS + Prisma
-- Supabase Postgres (Pooled 6543 / Direct 5432)
+- NestJS 11 + Prisma 6
+- Supabase Postgres (`DATABASE_URL` 6543 pooled / `DIRECT_URL` 5432 direct for migrations)
 - TypeScript strict
 - pnpm, Node 24 LTS
+
+> Prisma 7로 올리지 않은 이유: 7부터 `url`/`directUrl`이 schema에서 빠지고 driver adapter 의무 — NestJS·Supabase 가이드 대부분이 6 기준이라 안정적인 6.x 채택. 추후 생태계 정착 시 재평가.
 
 ## 핵심 원칙
 
