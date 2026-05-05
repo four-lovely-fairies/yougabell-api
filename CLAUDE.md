@@ -44,10 +44,11 @@
 ├── chat/            # LLM 호출 + 스트리밍
 ├── reports/         # 주간 리포트 배치
 ├── content/         # ImprovementTip, InspirationQuote
-├── prisma/
-│   └── schema.prisma
-└── test/            # e2e 테스트만 (unit 테스트는 모듈 옆 *.spec.ts)
+└── prisma/
+    └── schema.prisma
 ```
+
+> 테스트는 **unit 테스트만** — 각 모듈 옆 `*.spec.ts`. e2e 테스트 도입 시점에 별도 디렉토리/설정 추가.
 
 ## 환경 변수
 
