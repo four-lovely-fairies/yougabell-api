@@ -5,12 +5,20 @@
 
 ## 스택
 
-- NestJS 11 + Prisma 6
+- NestJS 11 + **Prisma 7** + `@prisma/adapter-pg`
 - Supabase Postgres (`DATABASE_URL` 6543 pooled / `DIRECT_URL` 5432 direct for migrations)
 - TypeScript strict
 - pnpm, Node 24 LTS
 
-> Prisma 7로 올리지 않은 이유: 7부터 `url`/`directUrl`이 schema에서 빠지고 driver adapter 의무 — NestJS·Supabase 가이드 대부분이 6 기준이라 안정적인 6.x 채택. 추후 생태계 정착 시 재평가.
+### Prisma 7 — 핵심 차이점 (5/6에서 옮겼다면 주의)
+
+- `schema.prisma`의 `datasource`는 **`provider`만 가짐** — `url`, `directUrl` 모두 제거됨
+- 연결 URL은 **`prisma.config.ts`** 에 위치:
+  - `datasource.url` ← `DIRECT_URL` (마이그레이션용 직접 연결)
+  - 런타임 쿼리는 schema의 datasource를 안 봄
+- 런타임은 **driver adapter 필수**:
+  - `PrismaService`가 `new PrismaPg({ connectionString: process.env.DATABASE_URL })` 어댑터를 PrismaClient에 주입
+  - 풀링은 `pg` 라이브러리가 처리
 
 ## 핵심 원칙
 
