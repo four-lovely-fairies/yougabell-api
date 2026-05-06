@@ -1,4 +1,4 @@
-// Working Mom Dad — domain schema
+// 육아밸 — domain schema
 // Source: ../docs/schema/01..10
 // Convention: tables-only (no JSON columns) except MessageCard.actionPayload (polymorphic)
 // IDs: UUID v4 (User.id matches Supabase auth.users.id — not auto-generated)

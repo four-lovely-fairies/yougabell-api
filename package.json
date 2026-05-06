@@ -1,7 +1,7 @@
 {
-  "name": "working-mom-dad-api",
+  "name": "yougabell-api",
   "version": "0.0.1",
-  "description": "Working Mom Dad — domain API · chatbot · LLM gateway (NestJS + Prisma)",
+  "description": "육아밸 — domain API · chatbot · LLM gateway (NestJS + Prisma)",
   "author": "",
   "private": true,
   "license": "UNLICENSED",

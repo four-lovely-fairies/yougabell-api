@@ -1,6 +1,6 @@
-# working-mom-dad-api
+# yougabell-api
 
-> Working Mom Dad — domain API · chatbot · LLM gateway.
+> 육아밸 — domain API · chatbot · LLM gateway.
 > NestJS + Prisma + Supabase Postgres.
 
 ## Stack

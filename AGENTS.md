@@ -1,7 +1,7 @@
-# working-mom-dad-api
+# yougabell-api
 
 > 도메인 API · 챗봇 · LLM 게이트웨이.
-> 워크스페이스 전체 컨벤션은 umbrella 레포 [`working-mom-dad`](https://github.com/youth-corp/working-mom-dad/blob/main/AGENTS.md) 참조.
+> 워크스페이스 전체 컨벤션은 umbrella 레포 [`yougabell`](https://github.com/four-lovely-fairies/yougabell/blob/main/AGENTS.md) 참조.
 
 ## 빌드 · 실행 · 검증 명령
 
