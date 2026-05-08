@@ -1,7 +1,12 @@
 # yougabell-api
 
-> 도메인 API · 챗봇 · LLM 게이트웨이.
+> 도메인 API · 챗봇 · LLM 게이트웨이. **구현(코드)의 anchor**.
 > 워크스페이스 전체 컨벤션은 umbrella 레포 [`yougabell`](https://github.com/four-lovely-fairies/yougabell/blob/main/AGENTS.md) 참조.
+> 도메인 스키마·기능 기획·레포 전략 등 **문서는 umbrella에서 관리** — 구현 시 다음 문서를 먼저 확인:
+>
+> - 도메인 스키마: [`yougabell/docs/schema/`](https://github.com/four-lovely-fairies/yougabell/tree/main/docs/schema)
+> - 기능 기획: [`yougabell/docs/features/`](https://github.com/four-lovely-fairies/yougabell/tree/main/docs/features)
+> - 레포 전략·결정: [`yougabell/docs/design/00-repo-strategy.md`](https://github.com/four-lovely-fairies/yougabell/blob/main/docs/design/00-repo-strategy.md)
 
 ## 빌드 · 실행 · 검증 명령
 
