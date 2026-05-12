@@ -5,6 +5,9 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { OnboardingCompleteGuard } from './auth/onboarding-complete.guard';
+import { ChildrenModule } from './children/children.module';
+import { HomeModule } from './home/home.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
@@ -16,12 +19,15 @@ import { UsersModule } from './users/users.module';
     OnboardingModule,
     UsersModule,
     AdminModule,
+    HomeModule,
+    NotificationsModule,
+    ChildrenModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     {
-      // 모든 보호 라우트에 적용 (각 컨트롤러는 JwtAuthGuard로 인증 후 본 가드가 onboardedAt 검사)
+      // 모든 보호 라우트에 적용. @SkipOnboardingCheck() 핸들러는 통과한다.
       provide: APP_GUARD,
       useClass: OnboardingCompleteGuard,
     },
