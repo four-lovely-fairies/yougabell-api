@@ -17,18 +17,19 @@ datasource db {
 // ============================================================
 
 model User {
-  id                    String   @id @db.Uuid // = Supabase auth.users.id (lazy-create on first authed request)
-  name                  String
-  birthDate             DateTime @db.Date
-  gender                Gender
-  weekdayHoursWithChild Float?
-  weekendHoursWithChild Float?
-  parentingStyleId      String? // future — see docs/schema/10-parenting-style.md
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id               String      @id @db.Uuid // = Supabase auth.users.id (lazy-create on first authed request)
+  name             String
+  birthDate        DateTime    @db.Date
+  gender           Gender
+  workStatus       WorkStatus? // 온보딩 v2: 선택 입력 (docs/features/20260508-onboarding.md)
+  onboardedAt      DateTime? // 온보딩 완료 시각 (null = 미완료)
+  parentingStyleId String? // future — see docs/schema/10-parenting-style.md
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   children             Child[]
   pushTokens           UserPushToken[]
+  appUsageSlots        UserAppUsageSlot[]
   batteryChecks        MentalBatteryCheck[]
   missionExecutions    MissionExecution[]
   mentalCareExecutions MentalCareExecution[]
@@ -39,6 +40,34 @@ model User {
 enum Gender {
   female
   male
+}
+
+enum WorkStatus {
+  working
+  full_time_caregiver
+}
+
+// 앱 사용 시간대 매트릭스 (요일 × 시간대). 기존 Weekday enum 재사용.
+// 의미: 사용자가 앱을 사용할(=알림을 받을) 시간대 — 아이와 함께 있는 시간 아님.
+model UserAppUsageSlot {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  dayOfWeek Weekday
+  slot      TimeSlot
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dayOfWeek, slot])
+  @@index([userId])
+}
+
+enum TimeSlot {
+  morning // 06:00–12:00
+  afternoon // 12:00–18:00
+  evening // 18:00–24:00
+  night // 00:00–06:00
+  all_day
 }
 
 model UserPushToken {
