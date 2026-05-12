@@ -1,5 +1,5 @@
 // 육아밸 — domain schema
-// Source: ../docs/schema/01..10
+// Source: ../docs/schema/01..11
 // Convention: tables-only (no JSON columns) except MessageCard.actionPayload (polymorphic)
 // IDs: UUID v4 (User.id matches Supabase auth.users.id — not auto-generated)
 // Numeric ratings 1..5 enforced at app level; raw SQL CHECK constraints can be added in a future migration
@@ -28,6 +28,7 @@ model User {
   updatedAt        DateTime    @updatedAt
 
   children             Child[]
+  notifications        Notification[]
   pushTokens           UserPushToken[]
   appUsageSlots        UserAppUsageSlot[]
   batteryChecks        MentalBatteryCheck[]
@@ -96,22 +97,88 @@ enum PushPlatform {
 // ============================================================
 
 model Child {
-  id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @db.Uuid
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
   name         String
-  birthDate    DateTime @db.Date
+  birthDate    DateTime  @db.Date
   gender       Gender
-  notes        String?  @default("없음")
+  notes        String?   @default("없음")
   avatarUrl    String?
   displayOrder Int
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   missionExecutions MissionExecution[]
+  notifications     Notification[]
   weeklyReports     WeeklyReport[]
 
   @@index([userId])
+  @@index([userId, deletedAt, displayOrder])
+}
+
+// ============================================================
+// Notification
+// ============================================================
+
+model Notification {
+  id         String                  @id @default(uuid()) @db.Uuid
+  userId     String                  @db.Uuid
+  childId    String?                 @db.Uuid
+  type       NotificationType
+  title      String
+  body       String
+  actionType NotificationActionType
+  targetType NotificationTargetType?
+  targetId   String?                 @db.Uuid
+  targetUrl  String?
+  priority   NotificationPriority    @default(normal)
+  readAt     DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  child Child? @relation(fields: [childId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+  @@index([userId, createdAt])
+  @@index([childId])
+}
+
+enum NotificationType {
+  mission_reminder
+  mission_feedback
+  weekly_report_ready
+  roadmap_update
+  mental_check_reminder
+  chat_follow_up
+  system_notice
+}
+
+enum NotificationActionType {
+  none
+  open_home
+  open_mission
+  open_roadmap
+  open_chat
+  open_report
+  url
+}
+
+enum NotificationTargetType {
+  mission
+  mission_execution
+  weekly_report
+  child
+  chat_session
+  url
+}
+
+enum NotificationPriority {
+  normal
+  high
 }
 
 // ============================================================
