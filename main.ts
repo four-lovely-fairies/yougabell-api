@@ -1,11 +1,19 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Request, Response } from 'express';
 import { writeFileSync } from 'node:fs';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.enableCors({
+    origin: [process.env.WEB_ORIGIN, process.env.ADMIN_ORIGIN].filter(
+      (origin): origin is string => Boolean(origin),
+    ),
+    credentials: true,
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -16,13 +24,16 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('yougabell-api')
-    .setDescription('육아밸 도메인 API')
+    .setTitle('Yougabell API')
+    .setDescription('육아밸 domain API')
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
+  app.getHttpAdapter().get('/openapi.json', (_: Request, res: Response) => {
+    res.json(document);
+  });
 
   if (process.env.OPENAPI_EXPORT_PATH) {
     writeFileSync(

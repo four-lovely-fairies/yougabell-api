@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuthenticatedRequest } from './jwt-auth.guard';
+import { AuthenticatedRequest, JwtAuthGuard } from './jwt-auth.guard';
 import { SKIP_ONBOARDING_CHECK_KEY } from './skip-onboarding-check.decorator';
 
 /**
@@ -23,6 +23,7 @@ export class OnboardingCompleteGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
+    private readonly jwtAuthGuard: JwtAuthGuard,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -33,6 +34,10 @@ export class OnboardingCompleteGuard implements CanActivate {
     if (skip) return true;
 
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    if (!req.user) {
+      this.jwtAuthGuard.canActivate(context);
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: req.user.id },
       select: { onboardedAt: true },
