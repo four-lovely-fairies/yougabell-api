@@ -25,7 +25,7 @@ export class UsersController {
   @ApiOperation({
     summary: '본인 정보 조회',
     description:
-      'User 본인 + children + appUsageSlots 포함. onboardedAt이 null이면 미완료.',
+      'User 본인 + children + 알림 시간대(notificationSlot/notificationTime) 포함. onboardedAt이 null이면 미완료.',
   })
   async getMe(@CurrentUserId() userId: string) {
     return this.onboarding.getMe(this.prisma, userId);

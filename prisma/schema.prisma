@@ -22,6 +22,9 @@ model User {
   birthDate        DateTime    @db.Date
   gender           Gender
   workStatus       WorkStatus? // 온보딩 v2: 선택 입력 (docs/features/20260508-onboarding.md)
+  // 온보딩 v3: 단일 알림 시간대 선택 (Figma 2146:4530). v2 매트릭스(UserAppUsageSlot) 폐기.
+  notificationSlot NotificationSlot?
+  notificationTime String? // "HH:MM" — custom일 때 필수, preset일 때 선택(미지정 시 시간대 디폴트)
   onboardedAt      DateTime? // 온보딩 완료 시각 (null = 미완료)
   parentingStyleId String? // future — see docs/schema/10-parenting-style.md
   createdAt        DateTime    @default(now())
@@ -30,7 +33,6 @@ model User {
   children             Child[]
   notifications        Notification[]
   pushTokens           UserPushToken[]
-  appUsageSlots        UserAppUsageSlot[]
   batteryChecks        MentalBatteryCheck[]
   missionExecutions    MissionExecution[]
   mentalCareExecutions MentalCareExecution[]
@@ -48,27 +50,14 @@ enum WorkStatus {
   full_time_caregiver
 }
 
-// 앱 사용 시간대 매트릭스 (요일 × 시간대). 기존 Weekday enum 재사용.
-// 의미: 사용자가 앱을 사용할(=알림을 받을) 시간대 — 아이와 함께 있는 시간 아님.
-model UserAppUsageSlot {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  dayOfWeek Weekday
-  slot      TimeSlot
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, dayOfWeek, slot])
-  @@index([userId])
-}
-
-enum TimeSlot {
-  morning // 06:00–12:00
-  afternoon // 12:00–18:00
-  evening // 18:00–24:00
-  night // 00:00–06:00
-  all_day
+// 알림 시간대 (User.notificationSlot). 의미: 사용자가 알림을 받을 시간대.
+// v3 변경 (Figma 2146:4530): 요일×시간대 매트릭스 폐기, 단일 선택 + custom(직접 입력).
+enum NotificationSlot {
+  morning // 디폴트 08:00 (08:00-09:00)
+  afternoon // 디폴트 12:00 (12:00-13:00)
+  evening // 디폴트 18:00 (18:00-20:00)
+  night // 디폴트 22:00 (22:00 이후)
+  custom // notificationTime 직접 지정
 }
 
 model UserPushToken {

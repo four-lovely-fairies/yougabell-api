@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Gender, TimeSlot, Weekday, WorkStatus } from '@prisma/client';
+import { Gender, NotificationSlot, WorkStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
@@ -10,6 +10,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
@@ -63,22 +64,31 @@ class ChildInputDto {
   notes?: string;
 }
 
-class AppUsageSlotDto {
-  @ApiProperty({ enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] })
-  @IsEnum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] satisfies Weekday[])
-  dayOfWeek!: Weekday;
-
+// v3: 단일 알림 시간대 선택 (Figma 2146:4530). v2 매트릭스(AppUsageSlotDto) 폐기.
+class NotificationPreferenceDto {
   @ApiProperty({
-    enum: ['morning', 'afternoon', 'evening', 'night', 'all_day'],
+    enum: ['morning', 'afternoon', 'evening', 'night', 'custom'],
+    description:
+      'preset(오전/오후/저녁/밤) 또는 custom(직접 입력). custom일 때 time 필수.',
   })
   @IsEnum([
     'morning',
     'afternoon',
     'evening',
     'night',
-    'all_day',
-  ] satisfies TimeSlot[])
-  slot!: TimeSlot;
+    'custom',
+  ] satisfies NotificationSlot[])
+  slot!: NotificationSlot;
+
+  @ApiPropertyOptional({
+    example: '08:00',
+    description:
+      'HH:MM (24h). custom일 때 필수, preset일 때 선택 — 미지정 시 시간대 디폴트.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'time must be HH:MM' })
+  time?: string;
 }
 
 export class CompleteOnboardingDto {
@@ -95,12 +105,10 @@ export class CompleteOnboardingDto {
   children!: ChildInputDto[];
 
   @ApiProperty({
-    type: [AppUsageSlotDto],
-    description:
-      '앱 사용 시간대 (요일 × 시간대). 빈 배열 허용 — 향후 정책 확정.',
+    type: NotificationPreferenceDto,
+    description: '알림 시간대 (단일 선택, custom 옵션 포함).',
   })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AppUsageSlotDto)
-  appUsage!: AppUsageSlotDto[];
+  @ValidateNested()
+  @Type(() => NotificationPreferenceDto)
+  notification!: NotificationPreferenceDto;
 }

@@ -13,7 +13,7 @@ export class OnboardingService {
 
   /**
    * 온보딩 일괄 완료 처리.
-   * Parent 정보 + Child[] + UserAppUsageSlot[]을 단일 트랜잭션으로 적용.
+   * Parent 정보 + Child[] + 알림 시간대를 단일 트랜잭션으로 적용.
    * 이미 완료(`onboardedAt != null`)된 사용자는 409.
    */
   async complete(userId: string, dto: CompleteOnboardingDto) {
@@ -41,6 +41,8 @@ export class OnboardingService {
           birthDate: new Date(dto.parent.birthDate),
           gender: dto.parent.gender,
           workStatus: dto.parent.workStatus ?? null,
+          notificationSlot: dto.notification.slot,
+          notificationTime: dto.notification.time ?? null,
           onboardedAt: new Date(),
         },
       });
@@ -55,21 +57,6 @@ export class OnboardingService {
           displayOrder: idx, // 입력 순서대로. 추후 운영자/사용자가 재정렬 가능 (별도 기능).
         })),
       });
-
-      const dedupedSlots = Array.from(
-        new Map(
-          dto.appUsage.map((s) => [`${s.dayOfWeek}:${s.slot}`, s]),
-        ).values(),
-      );
-      if (dedupedSlots.length > 0) {
-        await tx.userAppUsageSlot.createMany({
-          data: dedupedSlots.map((s) => ({
-            userId,
-            dayOfWeek: s.dayOfWeek,
-            slot: s.slot,
-          })),
-        });
-      }
 
       return this.getMe(tx, userId);
     });
@@ -88,7 +75,6 @@ export class OnboardingService {
       where: { id: userId },
       include: {
         children: { orderBy: { createdAt: 'asc' } },
-        appUsageSlots: { orderBy: [{ dayOfWeek: 'asc' }, { slot: 'asc' }] },
       },
     });
     return me;
