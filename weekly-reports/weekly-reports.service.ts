@@ -48,6 +48,9 @@ export type WeeklyReportsPrisma = {
     count(args: unknown): Promise<number>;
     findMany(args: unknown): Promise<unknown[]>;
   };
+  mentalBatteryCheck: {
+    findMany(args: unknown): Promise<Array<{ level: number }>>;
+  };
   notification: {
     create(args: unknown): Promise<unknown>;
   };
@@ -219,6 +222,16 @@ export class WeeklyReportsService {
         continue;
       }
 
+      const mentalBatteryChecks = await this.prisma.mentalBatteryCheck.findMany(
+        {
+          where: {
+            userId: child.userId,
+            checkedAt: { gte: rangeStart, lte: rangeEnd },
+          },
+          select: { level: true },
+        },
+      );
+
       if (existingReport && input.forceRegenerate) {
         await this.prisma.weeklyReport.delete({
           where: { id: existingReport.id },
@@ -232,6 +245,7 @@ export class WeeklyReportsService {
           weekStart: rangeStart,
           weekEnd,
           executions,
+          mentalBatteryChecks,
         }),
       })) as { id?: string } | undefined;
 
@@ -340,12 +354,14 @@ function buildWeeklyReportCreateData({
   weekStart,
   weekEnd,
   executions,
+  mentalBatteryChecks,
 }: {
   userId: string;
   childId: string;
   weekStart: Date;
   weekEnd: Date;
   executions: MissionExecutionForReport[];
+  mentalBatteryChecks: Array<{ level: number }>;
 }) {
   const totalMissionDurationSeconds = executions.reduce(
     (sum, execution) =>
@@ -364,16 +380,10 @@ function buildWeeklyReportCreateData({
   );
   const childPositiveReactionRate =
     feedbacks.length === 0 ? 0 : positiveFeedbacks.length / feedbacks.length;
-  const parentEnergyValues = feedbacks.map((feedback) => feedback.parentEnergy);
-  const psychologicalEnergy =
-    parentEnergyValues.length === 0
-      ? 50
-      : Math.round(
-          (parentEnergyValues.reduce((sum, value) => sum + value, 0) /
-            parentEnergyValues.length /
-            5) *
-            100,
-        );
+  const psychologicalEnergy = calculatePsychologicalEnergy({
+    mentalBatteryChecks,
+    feedbacks,
+  });
 
   return {
     userId,
@@ -415,6 +425,34 @@ function buildDayRows(executions: MissionExecutionForReport[]) {
     weekday,
     completedCount: counts.get(weekday) ?? 0,
   }));
+}
+
+function calculatePsychologicalEnergy({
+  mentalBatteryChecks,
+  feedbacks,
+}: {
+  mentalBatteryChecks: Array<{ level: number }>;
+  feedbacks: Array<{ parentEnergy: number }>;
+}): number {
+  if (mentalBatteryChecks.length > 0) {
+    return scaleFivePointAverageToPercent(
+      mentalBatteryChecks.map((check) => check.level),
+    );
+  }
+
+  if (feedbacks.length > 0) {
+    return scaleFivePointAverageToPercent(
+      feedbacks.map((feedback) => feedback.parentEnergy),
+    );
+  }
+
+  return 50;
+}
+
+function scaleFivePointAverageToPercent(values: number[]): number {
+  return Math.round(
+    (values.reduce((sum, value) => sum + value, 0) / values.length / 5) * 100,
+  );
 }
 
 function buildKeywordRows(executions: MissionExecutionForReport[]) {

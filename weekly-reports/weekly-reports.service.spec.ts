@@ -323,6 +323,45 @@ void describe('WeeklyReportsService', () => {
     assert.deepEqual(createData.data.topKeywords.create, []);
   });
 
+  void it('uses weekly mental battery checks before parent energy fallback', async () => {
+    const createCalls: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [createChild()],
+      report: null,
+      executions: [
+        {
+          id: 'execution-1',
+          userId: 'user-1',
+          childId: 'child-1',
+          missionId: 'mission-1',
+          status: 'completed',
+          completedAt: new Date('2026-05-04T10:00:00+09:00'),
+          actualDurationSeconds: 600,
+          mission: { durationMinutes: 10 },
+          feedback: {
+            childReaction: 5,
+            parentEnergy: 1,
+            keywords: [],
+          },
+        },
+      ],
+      mentalBatteryChecks: [{ level: 2 }, { level: 5 }],
+      onCreateReport: (args) => createCalls.push(args),
+    });
+    const service = new WeeklyReportsService(prisma);
+
+    await service.generateForWeek({
+      weekStart: '2026-05-04',
+    });
+
+    const createData = createCalls[0] as {
+      data: {
+        psychologicalEnergy: number;
+      };
+    };
+    assert.equal(createData.data.psychologicalEnergy, 70);
+  });
+
   void it('skips an existing report during regular generation', async () => {
     const createCalls: unknown[] = [];
     const prisma = createPrismaStub({
@@ -395,6 +434,7 @@ function createPrismaStub({
   completedMissionCount = 1,
   completedMissionCounts,
   executions = [],
+  mentalBatteryChecks = [],
   onCreateReport,
 }: {
   children: Awaited<ReturnType<WeeklyReportsPrisma['child']['findMany']>>;
@@ -402,6 +442,7 @@ function createPrismaStub({
   completedMissionCount?: number;
   completedMissionCounts?: number[];
   executions?: unknown[];
+  mentalBatteryChecks?: Array<{ level: number }>;
   onCreateReport?: (args: unknown) => void;
 }): WeeklyReportsPrisma {
   let countCallIndex = 0;
@@ -423,6 +464,9 @@ function createPrismaStub({
           completedMissionCounts?.[countCallIndex++] ?? completedMissionCount,
         ),
       findMany: () => Promise.resolve(executions),
+    },
+    mentalBatteryCheck: {
+      findMany: () => Promise.resolve(mentalBatteryChecks),
     },
     notification: {
       create: () => Promise.resolve(undefined),
