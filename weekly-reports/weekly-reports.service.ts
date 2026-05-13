@@ -343,6 +343,8 @@ type MissionExecutionForReport = {
   completedAt: Date;
   actualDurationSeconds: number | null;
   mission: {
+    title: string;
+    effect: string;
     durationMinutes: number;
   };
   feedback: null | {
@@ -409,16 +411,7 @@ function buildWeeklyReportCreateData({
     generatedAt: new Date(),
     days: { create: buildDayRows(executions) },
     topKeywords: { create: buildKeywordRows(executions) },
-    bestMoments: {
-      create: [
-        {
-          order: 1,
-          label: '이번 주의 순간',
-          title: '함께한 시간이 쌓였어요',
-          body: '이번 주에 완료한 미션 기록을 바탕으로 아이와 연결된 시간을 확인했어요.',
-        },
-      ],
-    },
+    bestMoments: { create: buildBestMomentRows(executions) },
   };
 }
 
@@ -461,6 +454,36 @@ function scaleFivePointAverageToPercent(values: number[]): number {
   return Math.round(
     (values.reduce((sum, value) => sum + value, 0) / values.length / 5) * 100,
   );
+}
+
+function buildBestMomentRows(executions: MissionExecutionForReport[]) {
+  const executionsWithFeedback = executions.filter(
+    (
+      execution,
+    ): execution is MissionExecutionForReport & {
+      feedback: NonNullable<MissionExecutionForReport['feedback']>;
+    } => Boolean(execution.feedback),
+  );
+
+  if (executionsWithFeedback.length === 0) {
+    return [];
+  }
+
+  const highestReaction = Math.max(
+    ...executionsWithFeedback.map(
+      (execution) => execution.feedback.childReaction,
+    ),
+  );
+
+  return executionsWithFeedback
+    .filter((execution) => execution.feedback.childReaction === highestReaction)
+    .sort((a, b) => a.completedAt.getTime() - b.completedAt.getTime())
+    .map((execution, index) => ({
+      order: index + 1,
+      label: `아이 반응 ${highestReaction}점`,
+      title: execution.mission.title,
+      body: execution.mission.effect,
+    }));
 }
 
 function buildKeywordRows(executions: MissionExecutionForReport[]) {

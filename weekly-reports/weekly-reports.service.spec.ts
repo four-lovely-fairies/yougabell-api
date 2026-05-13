@@ -362,6 +362,104 @@ void describe('WeeklyReportsService', () => {
     assert.equal(createData.data.psychologicalEnergy, 70);
   });
 
+  void it('creates best moments from missions with the highest child reaction', async () => {
+    const createCalls: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [createChild()],
+      report: null,
+      executions: [
+        {
+          id: 'execution-1',
+          userId: 'user-1',
+          childId: 'child-1',
+          missionId: 'mission-1',
+          status: 'completed',
+          completedAt: new Date('2026-05-04T10:00:00+09:00'),
+          actualDurationSeconds: 600,
+          mission: {
+            title: '화요일 마음 듣기',
+            effect: '아이의 감정 표현을 돕습니다.',
+            durationMinutes: 10,
+          },
+          feedback: {
+            childReaction: 4,
+            parentEnergy: 4,
+            keywords: [],
+          },
+        },
+        {
+          id: 'execution-2',
+          userId: 'user-1',
+          childId: 'child-1',
+          missionId: 'mission-2',
+          status: 'completed',
+          completedAt: new Date('2026-05-05T10:00:00+09:00'),
+          actualDurationSeconds: 600,
+          mission: {
+            title: '수요일 눈맞춤 놀이',
+            effect: '아이에게 안정감과 친밀감을 줍니다.',
+            durationMinutes: 10,
+          },
+          feedback: {
+            childReaction: 5,
+            parentEnergy: 4,
+            keywords: [],
+          },
+        },
+        {
+          id: 'execution-3',
+          userId: 'user-1',
+          childId: 'child-1',
+          missionId: 'mission-3',
+          status: 'completed',
+          completedAt: new Date('2026-05-06T10:00:00+09:00'),
+          actualDurationSeconds: 600,
+          mission: {
+            title: '목요일 질문하기',
+            effect: '아이의 사고 확장을 돕습니다.',
+            durationMinutes: 10,
+          },
+          feedback: {
+            childReaction: 5,
+            parentEnergy: 3,
+            keywords: [],
+          },
+        },
+      ],
+      onCreateReport: (args) => createCalls.push(args),
+    });
+    const service = new WeeklyReportsService(prisma);
+
+    await service.generateForWeek({ weekStart: '2026-05-04' });
+
+    const createData = createCalls[0] as {
+      data: {
+        bestMoments: {
+          create: Array<{
+            order: number;
+            label: string;
+            title: string;
+            body: string;
+          }>;
+        };
+      };
+    };
+    assert.deepEqual(createData.data.bestMoments.create, [
+      {
+        order: 1,
+        label: '아이 반응 5점',
+        title: '수요일 눈맞춤 놀이',
+        body: '아이에게 안정감과 친밀감을 줍니다.',
+      },
+      {
+        order: 2,
+        label: '아이 반응 5점',
+        title: '목요일 질문하기',
+        body: '아이의 사고 확장을 돕습니다.',
+      },
+    ]);
+  });
+
   void it('skips an existing report during regular generation', async () => {
     const createCalls: unknown[] = [];
     const prisma = createPrismaStub({
