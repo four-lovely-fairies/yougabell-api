@@ -1,3 +1,5 @@
+import 'dotenv/config'; // PrismaService가 DATABASE_URL을 읽기 전에 .env 로드 (NestJS 기본은 .env 미로드)
+
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
