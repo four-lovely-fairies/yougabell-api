@@ -395,6 +395,103 @@ void describe('WeeklyReportsService', () => {
     });
     assert.equal(createCalls.length, 0);
   });
+
+  void it('does not write reports or notifications during dry runs', async () => {
+    const createCalls: unknown[] = [];
+    const notificationCalls: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [createChild()],
+      report: null,
+      executions: [
+        {
+          id: 'execution-1',
+          userId: 'user-1',
+          childId: 'child-1',
+          missionId: 'mission-1',
+          status: 'completed',
+          completedAt: new Date('2026-05-04T10:00:00+09:00'),
+          actualDurationSeconds: 600,
+          mission: { durationMinutes: 10 },
+          feedback: null,
+        },
+      ],
+      onCreateReport: (args) => createCalls.push(args),
+      onCreateNotification: (args) => notificationCalls.push(args),
+    });
+    const service = new WeeklyReportsService(prisma);
+
+    const result = await service.generateForWeek({
+      weekStart: '2026-05-04',
+      dryRun: true,
+    });
+
+    assert.deepEqual(result, {
+      processed: 1,
+      generated: 1,
+      skipped: 0,
+    });
+    assert.equal(createCalls.length, 0);
+    assert.equal(notificationCalls.length, 0);
+  });
+
+  void it('uses first feedback time and keyword rank to break top keyword ties', async () => {
+    const createCalls: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [createChild()],
+      report: null,
+      executions: [
+        {
+          id: 'execution-1',
+          userId: 'user-1',
+          childId: 'child-1',
+          missionId: 'mission-1',
+          status: 'completed',
+          completedAt: new Date('2026-05-05T10:00:00+09:00'),
+          actualDurationSeconds: 600,
+          mission: { durationMinutes: 10 },
+          feedback: {
+            childReaction: 5,
+            parentEnergy: 4,
+            createdAt: new Date('2026-05-05T10:10:00+09:00'),
+            keywords: [
+              { keyword: '우주', rank: 2 },
+              { keyword: '공룡', rank: 1 },
+            ],
+          },
+        },
+        {
+          id: 'execution-2',
+          userId: 'user-1',
+          childId: 'child-1',
+          missionId: 'mission-2',
+          status: 'completed',
+          completedAt: new Date('2026-05-04T10:00:00+09:00'),
+          actualDurationSeconds: 600,
+          mission: { durationMinutes: 10 },
+          feedback: {
+            childReaction: 5,
+            parentEnergy: 4,
+            createdAt: new Date('2026-05-04T10:10:00+09:00'),
+            keywords: [{ keyword: '우주', rank: 1 }],
+          },
+        },
+      ],
+      onCreateReport: (args) => createCalls.push(args),
+    });
+    const service = new WeeklyReportsService(prisma);
+
+    await service.generateForWeek({ weekStart: '2026-05-04' });
+
+    const createData = createCalls[0] as {
+      data: {
+        topKeywords: { create: Array<{ rank: number; keyword: string }> };
+      };
+    };
+    assert.deepEqual(createData.data.topKeywords.create, [
+      { rank: 1, keyword: '우주' },
+      { rank: 2, keyword: '공룡' },
+    ]);
+  });
 });
 
 function createChild() {
@@ -436,6 +533,7 @@ function createPrismaStub({
   executions = [],
   mentalBatteryChecks = [],
   onCreateReport,
+  onCreateNotification,
 }: {
   children: Awaited<ReturnType<WeeklyReportsPrisma['child']['findMany']>>;
   report: Awaited<ReturnType<WeeklyReportsPrisma['weeklyReport']['findFirst']>>;
@@ -444,6 +542,7 @@ function createPrismaStub({
   executions?: unknown[];
   mentalBatteryChecks?: Array<{ level: number }>;
   onCreateReport?: (args: unknown) => void;
+  onCreateNotification?: (args: unknown) => void;
 }): WeeklyReportsPrisma {
   let countCallIndex = 0;
   return {
@@ -469,7 +568,10 @@ function createPrismaStub({
       findMany: () => Promise.resolve(mentalBatteryChecks),
     },
     notification: {
-      create: () => Promise.resolve(undefined),
+      create: (args: unknown) => {
+        onCreateNotification?.(args);
+        return Promise.resolve(undefined);
+      },
     },
   };
 }

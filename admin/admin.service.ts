@@ -63,6 +63,7 @@ export class AdminService {
     return this.weeklyReportsService.generateForWeek({
       weekStart: dto.weekStart,
       forceRegenerate: dto.forceRegenerate,
+      ...(dto.dryRun === undefined ? {} : { dryRun: dto.dryRun }),
     });
   }
 }

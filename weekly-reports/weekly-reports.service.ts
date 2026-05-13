@@ -177,6 +177,7 @@ export class WeeklyReportsService {
   async generateForWeek(input: {
     weekStart?: string;
     forceRegenerate?: boolean;
+    dryRun?: boolean;
   }): Promise<{ processed: number; generated: number; skipped: number }> {
     const weekStartKey =
       input.weekStart ?? getPreviousCompletedWeekStart(new Date());
@@ -231,6 +232,11 @@ export class WeeklyReportsService {
           select: { level: true },
         },
       );
+
+      if (input.dryRun) {
+        generated += 1;
+        continue;
+      }
 
       if (existingReport && input.forceRegenerate) {
         await this.prisma.weeklyReport.delete({
@@ -342,8 +348,10 @@ type MissionExecutionForReport = {
   feedback: null | {
     childReaction: number;
     parentEnergy: number;
+    createdAt?: Date;
     keywords: Array<{
       keyword: string;
+      rank?: number;
     }>;
   };
 };
@@ -461,6 +469,8 @@ function buildKeywordRows(executions: MissionExecutionForReport[]) {
     {
       keyword: string;
       count: number;
+      firstSeenAt: number;
+      firstRank: number;
     }
   >();
 
@@ -470,17 +480,34 @@ function buildKeywordRows(executions: MissionExecutionForReport[]) {
       if (!displayKeyword) continue;
 
       const compareKey = normalizeKeywordCompare(displayKeyword);
+      const seenAt =
+        execution.feedback?.createdAt?.getTime() ??
+        execution.completedAt.getTime();
+      const rank = keyword.rank ?? Number.MAX_SAFE_INTEGER;
       const current = stats.get(compareKey);
       if (current) {
         current.count += 1;
+        current.firstSeenAt = Math.min(current.firstSeenAt, seenAt);
+        current.firstRank = Math.min(current.firstRank, rank);
       } else {
-        stats.set(compareKey, { keyword: displayKeyword, count: 1 });
+        stats.set(compareKey, {
+          keyword: displayKeyword,
+          count: 1,
+          firstSeenAt: seenAt,
+          firstRank: rank,
+        });
       }
     }
   }
 
   return [...stats.values()]
-    .sort((a, b) => b.count - a.count || a.keyword.localeCompare(b.keyword))
+    .sort(
+      (a, b) =>
+        b.count - a.count ||
+        a.firstSeenAt - b.firstSeenAt ||
+        a.firstRank - b.firstRank ||
+        a.keyword.localeCompare(b.keyword),
+    )
     .slice(0, 3)
     .map((entry, index) => ({
       rank: index + 1,

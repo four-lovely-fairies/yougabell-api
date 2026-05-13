@@ -17,4 +17,12 @@ export class GenerateWeeklyReportsDto {
   @IsOptional()
   @IsBoolean()
   forceRegenerate?: boolean;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: '생성 대상만 계산하고 DB 쓰기/알림 생성을 하지 않을지 여부',
+  })
+  @IsOptional()
+  @IsBoolean()
+  dryRun?: boolean;
 }
