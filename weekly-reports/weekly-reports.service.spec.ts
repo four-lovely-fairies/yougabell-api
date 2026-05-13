@@ -11,6 +11,7 @@ void describe('WeeklyReportsService', () => {
       children: [
         {
           id: 'child-1',
+          userId: 'user-1',
           name: '김유스',
           birthDate: new Date('2023-04-20T00:00:00+09:00'),
           displayOrder: 0,
@@ -96,6 +97,7 @@ void describe('WeeklyReportsService', () => {
       children: [
         {
           id: 'child-1',
+          userId: 'user-1',
           name: '김유스',
           birthDate: new Date('2023-04-20T00:00:00+09:00'),
           displayOrder: 0,
@@ -121,6 +123,7 @@ void describe('WeeklyReportsService', () => {
       children: [
         {
           id: 'child-1',
+          userId: 'user-1',
           name: '김유스',
           birthDate: new Date('2023-04-20T00:00:00+09:00'),
           displayOrder: 0,
@@ -171,26 +174,100 @@ void describe('WeeklyReportsService', () => {
       },
     });
   });
+
+  void it('generates a weekly report draft from completed missions and normalized keywords', async () => {
+    const createCalls: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [
+        {
+          id: 'child-1',
+          userId: 'user-1',
+          name: '김유스',
+          birthDate: new Date('2023-04-20T00:00:00+09:00'),
+          displayOrder: 0,
+          createdAt: new Date('2026-05-01T00:00:00+09:00'),
+        },
+      ],
+      report: null,
+      executions: [
+        {
+          id: 'execution-1',
+          userId: 'user-1',
+          childId: 'child-1',
+          missionId: 'mission-1',
+          status: 'completed',
+          completedAt: new Date('2026-05-04T10:00:00+09:00'),
+          actualDurationSeconds: 600,
+          mission: { durationMinutes: 10 },
+          feedback: {
+            childReaction: 5,
+            parentEnergy: 4,
+            keywords: [
+              { keyword: ' Dino ' },
+              { keyword: 'dino' },
+              { keyword: '공룡' },
+            ],
+          },
+        },
+      ],
+      onCreateReport: (args) => createCalls.push(args),
+    });
+    const service = new WeeklyReportsService(prisma);
+
+    const result = await service.generateForWeek({
+      weekStart: '2026-05-04',
+    });
+
+    assert.deepEqual(result, {
+      processed: 1,
+      generated: 1,
+      skipped: 0,
+    });
+    assert.equal(createCalls.length, 1);
+
+    const createData = createCalls[0] as {
+      data: {
+        topKeywords: { create: Array<{ rank: number; keyword: string }> };
+      };
+    };
+    assert.deepEqual(createData.data.topKeywords.create, [
+      { rank: 1, keyword: 'Dino' },
+      { rank: 2, keyword: '공룡' },
+    ]);
+  });
 });
 
 function createPrismaStub({
   children,
   report,
   completedMissionCount = 1,
+  executions = [],
+  onCreateReport,
 }: {
   children: Awaited<ReturnType<WeeklyReportsPrisma['child']['findMany']>>;
   report: Awaited<ReturnType<WeeklyReportsPrisma['weeklyReport']['findFirst']>>;
   completedMissionCount?: number;
+  executions?: unknown[];
+  onCreateReport?: (args: unknown) => void;
 }): WeeklyReportsPrisma {
   return {
     child: {
-      findMany: async () => children,
+      findMany: () => Promise.resolve(children),
     },
     weeklyReport: {
-      findFirst: async () => report,
+      findFirst: () => Promise.resolve(report),
+      delete: () => Promise.resolve(undefined),
+      create: (args: unknown) => {
+        onCreateReport?.(args);
+        return Promise.resolve(args);
+      },
     },
     missionExecution: {
-      count: async () => completedMissionCount,
+      count: () => Promise.resolve(completedMissionCount),
+      findMany: () => Promise.resolve(executions),
+    },
+    notification: {
+      create: () => Promise.resolve(undefined),
     },
   };
 }

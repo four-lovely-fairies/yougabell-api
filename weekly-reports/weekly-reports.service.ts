@@ -31,6 +31,7 @@ export type WeeklyReportsPrisma = {
     findMany(args: unknown): Promise<
       Array<{
         id: string;
+        userId: string;
         name: string;
         birthDate: Date;
         displayOrder: number;
@@ -40,9 +41,15 @@ export type WeeklyReportsPrisma = {
   };
   weeklyReport: {
     findFirst(args: unknown): Promise<WeeklyReportRecord | null>;
+    delete(args: unknown): Promise<unknown>;
+    create(args: unknown): Promise<unknown>;
   };
   missionExecution: {
     count(args: unknown): Promise<number>;
+    findMany(args: unknown): Promise<unknown[]>;
+  };
+  notification: {
+    create(args: unknown): Promise<unknown>;
   };
 };
 
@@ -162,6 +169,94 @@ export class WeeklyReportsService {
     return toDetail(report);
   }
 
+  async generateForWeek(input: {
+    weekStart: string;
+    forceRegenerate?: boolean;
+  }): Promise<{ processed: number; generated: number; skipped: number }> {
+    const weekStart = parseDateOnly(input.weekStart);
+    const weekEnd = addDays(weekStart, 6);
+    const rangeStart = new Date(`${input.weekStart}T00:00:00+09:00`);
+    const rangeEnd = new Date(`${toUtcDateOnly(weekEnd)}T23:59:59.999+09:00`);
+    const children = await this.prisma.child.findMany({
+      where: { deletedAt: null },
+      orderBy: [{ userId: 'asc' }, { displayOrder: 'asc' }],
+    });
+
+    let generated = 0;
+    let skipped = 0;
+
+    for (const child of children) {
+      const existingReport = await this.prisma.weeklyReport.findFirst({
+        where: {
+          childId: child.id,
+          weekStart: rangeStart,
+        },
+      });
+
+      if (existingReport && !input.forceRegenerate) {
+        skipped += 1;
+        continue;
+      }
+
+      const executions = (await this.prisma.missionExecution.findMany({
+        where: {
+          childId: child.id,
+          status: { in: ['completed', 'early_completed'] },
+          completedAt: { gte: rangeStart, lte: rangeEnd },
+        },
+        include: {
+          mission: true,
+          feedback: { include: { keywords: true } },
+        },
+      })) as MissionExecutionForReport[];
+
+      if (executions.length === 0) {
+        skipped += 1;
+        continue;
+      }
+
+      if (existingReport && input.forceRegenerate) {
+        await this.prisma.weeklyReport.delete({
+          where: { id: existingReport.id },
+        });
+      }
+
+      const created = (await this.prisma.weeklyReport.create({
+        data: buildWeeklyReportCreateData({
+          userId: child.userId,
+          childId: child.id,
+          weekStart: rangeStart,
+          weekEnd,
+          executions,
+        }),
+      })) as { id?: string } | undefined;
+
+      if (created?.id) {
+        await this.prisma.notification.create({
+          data: {
+            userId: child.userId,
+            childId: child.id,
+            type: 'weekly_report_ready',
+            title: '주간 리포트가 준비됐어요',
+            body: '지난주 아이와 함께한 시간을 확인해보세요.',
+            actionType: 'open_report',
+            targetType: 'weekly_report',
+            targetId: created.id,
+            priority: 'normal',
+          },
+        });
+      }
+
+      generated += 1;
+    }
+
+    return {
+      processed: children.length,
+      generated,
+      skipped,
+    };
+  }
+
   private async getEmptyState(
     childId: string,
   ): Promise<WeeklyReportCurrentResponse['emptyState']> {
@@ -192,6 +287,152 @@ export class WeeklyReportsService {
       ctaHref: '/mission',
     };
   }
+}
+
+type MissionExecutionForReport = {
+  status: string;
+  completedAt: Date;
+  actualDurationSeconds: number | null;
+  mission: {
+    durationMinutes: number;
+  };
+  feedback: null | {
+    childReaction: number;
+    parentEnergy: number;
+    keywords: Array<{
+      keyword: string;
+    }>;
+  };
+};
+
+function buildWeeklyReportCreateData({
+  userId,
+  childId,
+  weekStart,
+  weekEnd,
+  executions,
+}: {
+  userId: string;
+  childId: string;
+  weekStart: Date;
+  weekEnd: Date;
+  executions: MissionExecutionForReport[];
+}) {
+  const totalMissionDurationSeconds = executions.reduce(
+    (sum, execution) =>
+      sum +
+      (execution.actualDurationSeconds ??
+        execution.mission.durationMinutes * 60),
+    0,
+  );
+  const feedbacks = executions
+    .map((execution) => execution.feedback)
+    .filter((feedback): feedback is NonNullable<typeof feedback> =>
+      Boolean(feedback),
+    );
+  const positiveFeedbacks = feedbacks.filter(
+    (feedback) => feedback.childReaction >= 4,
+  );
+  const childPositiveReactionRate =
+    feedbacks.length === 0 ? 0 : positiveFeedbacks.length / feedbacks.length;
+  const parentEnergyValues = feedbacks.map((feedback) => feedback.parentEnergy);
+  const psychologicalEnergy =
+    parentEnergyValues.length === 0
+      ? 50
+      : Math.round(
+          (parentEnergyValues.reduce((sum, value) => sum + value, 0) /
+            parentEnergyValues.length /
+            5) *
+            100,
+        );
+
+  return {
+    userId,
+    childId,
+    weekStart,
+    weekEnd,
+    headline: '이번 주도 아이와의 시간을 잘 쌓아가고 있어요.',
+    headlineBody:
+      '짧은 시간이라도 꾸준히 함께한 기록은 아이에게 안정감을 줍니다.',
+    totalMissionDurationSeconds,
+    childPositiveReactionRate,
+    psychologicalEnergy,
+    aiActionSuggestion:
+      '다음 미션 후 피드백에 아이가 자주 말한 단어나 기억에 남는 반응을 남겨보세요.',
+    generatedAt: new Date(),
+    days: { create: buildDayRows(executions) },
+    topKeywords: { create: buildKeywordRows(executions) },
+    bestMoments: {
+      create: [
+        {
+          order: 1,
+          label: '이번 주의 순간',
+          title: '함께한 시간이 쌓였어요',
+          body: '이번 주에 완료한 미션 기록을 바탕으로 아이와 연결된 시간을 확인했어요.',
+        },
+      ],
+    },
+  };
+}
+
+function buildDayRows(executions: MissionExecutionForReport[]) {
+  const counts = new Map<Weekday, number>();
+  for (const execution of executions) {
+    const weekday = getWeekday(execution.completedAt);
+    counts.set(weekday, (counts.get(weekday) ?? 0) + 1);
+  }
+
+  return WEEKDAYS.map((weekday) => ({
+    weekday,
+    completedCount: counts.get(weekday) ?? 0,
+  }));
+}
+
+function buildKeywordRows(executions: MissionExecutionForReport[]) {
+  const stats = new Map<
+    string,
+    {
+      keyword: string;
+      count: number;
+    }
+  >();
+
+  for (const execution of executions) {
+    for (const keyword of execution.feedback?.keywords ?? []) {
+      const displayKeyword = normalizeKeywordDisplay(keyword.keyword);
+      if (!displayKeyword) continue;
+
+      const compareKey = normalizeKeywordCompare(displayKeyword);
+      const current = stats.get(compareKey);
+      if (current) {
+        current.count += 1;
+      } else {
+        stats.set(compareKey, { keyword: displayKeyword, count: 1 });
+      }
+    }
+  }
+
+  return [...stats.values()]
+    .sort((a, b) => b.count - a.count || a.keyword.localeCompare(b.keyword))
+    .slice(0, 3)
+    .map((entry, index) => ({
+      rank: index + 1,
+      keyword: entry.keyword,
+    }));
+}
+
+function normalizeKeywordDisplay(keyword: string): string {
+  return keyword.trim().replace(/\s+/g, ' ');
+}
+
+function normalizeKeywordCompare(keyword: string): string {
+  return keyword.replace(/[A-Za-z]+/g, (letters) => letters.toLowerCase());
+}
+
+function getWeekday(date: Date): Weekday {
+  const seoul = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const day = seoul.getUTCDay();
+  return WEEKDAYS[day === 0 ? 6 : day - 1];
 }
 
 function toDetail(report: WeeklyReportRecord): WeeklyReportDetail {
@@ -292,6 +533,22 @@ function getPreviousCompletedWeekStart(today: Date): string {
     currentSeoulDate.getUTCDate() - daysFromMonday - 7,
   );
   return toUtcDateOnly(currentSeoulDate);
+}
+
+function parseDateOnly(dateKey: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) {
+    throw new Error(`Invalid date key: ${dateKey}`);
+  }
+
+  const [, year, month, day] = match;
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
 }
 
 function toSeoulDateKey(date: Date): string {
