@@ -517,10 +517,9 @@ model WeeklyReport {
   weekStart                   DateTime @db.Date // Monday
   weekEnd                     DateTime @db.Date // Sunday
   headline                    String
+  headlineBody                String?
   totalMissionDurationSeconds Int      @default(0)
   childPositiveReactionRate   Float // 0..1
-  bestMomentTitle             String?
-  bestMomentBody              String?
   psychologicalEnergy         Int // 0..100
   aiActionSuggestion          String
   generatedAt                 DateTime
@@ -530,6 +529,7 @@ model WeeklyReport {
   child           Child                        @relation(fields: [childId], references: [id], onDelete: Cascade)
   days            WeeklyReportDay[]
   topKeywords     WeeklyReportKeyword[]
+  bestMoments     WeeklyReportBestMoment[]
   improvementTips WeeklyReportImprovementTip[]
 
   @@unique([childId, weekStart])
@@ -566,6 +566,19 @@ model WeeklyReportKeyword {
   report WeeklyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@unique([reportId, rank])
+}
+
+model WeeklyReportBestMoment {
+  id       String  @id @default(uuid()) @db.Uuid
+  reportId String  @db.Uuid
+  order    Int
+  label    String?
+  title    String
+  body     String
+
+  report WeeklyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, order])
 }
 
 model WeeklyReportImprovementTip {

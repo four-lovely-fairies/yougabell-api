@@ -11,6 +11,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
+import { WeeklyReportsModule } from './weekly-reports/weekly-reports.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { UsersModule } from './users/users.module';
     HomeModule,
     NotificationsModule,
     ChildrenModule,
+    WeeklyReportsModule,
   ],
   controllers: [AppController],
   providers: [
