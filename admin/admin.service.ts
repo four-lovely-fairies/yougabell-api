@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { WeeklyReportsService } from '../weekly-reports/weekly-reports.service';
+import { GenerateWeeklyReportsDto } from './dto/generate-weekly-reports.dto';
 import { ListUsersDto } from './dto/list-users.dto';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly weeklyReportsService: WeeklyReportsService,
+  ) {}
 
   async listUsers(query: ListUsersDto) {
     const page = query.page ?? 1;
@@ -52,5 +57,12 @@ export class AdminService {
       page,
       limit,
     };
+  }
+
+  generateWeeklyReports(dto: GenerateWeeklyReportsDto) {
+    return this.weeklyReportsService.generateForWeek({
+      weekStart: dto.weekStart,
+      forceRegenerate: dto.forceRegenerate,
+    });
   }
 }

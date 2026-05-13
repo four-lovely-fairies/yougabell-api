@@ -7,5 +7,6 @@ import { WeeklyReportsService } from './weekly-reports.service';
   imports: [PrismaModule],
   controllers: [WeeklyReportsController],
   providers: [WeeklyReportsService],
+  exports: [WeeklyReportsService],
 })
 export class WeeklyReportsModule {}

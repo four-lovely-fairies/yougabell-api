@@ -1,8 +1,9 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SkipOnboardingCheck } from '../auth/skip-onboarding-check.decorator';
 import { AdminService } from './admin.service';
+import { GenerateWeeklyReportsDto } from './dto/generate-weekly-reports.dto';
 import { ListUsersDto } from './dto/list-users.dto';
 
 /**
@@ -27,5 +28,15 @@ export class AdminController {
   })
   async listUsers(@Query() query: ListUsersDto) {
     return this.service.listUsers(query);
+  }
+
+  @Post('weekly-reports/generate')
+  @ApiOperation({
+    summary: '주간 리포트 수동 생성 (운영자)',
+    description:
+      '지정한 주차 또는 직전 완료 주차의 주간 리포트를 자녀별로 생성한다.',
+  })
+  async generateWeeklyReports(@Body() body: GenerateWeeklyReportsDto) {
+    return this.service.generateWeeklyReports(body);
   }
 }

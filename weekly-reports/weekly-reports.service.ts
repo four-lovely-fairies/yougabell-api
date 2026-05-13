@@ -140,7 +140,9 @@ export class WeeklyReportsService {
         ageLabel: getAgeLabel(selectedChild.birthDate, today),
       },
       report: report ? toDetail(report) : null,
-      emptyState: report ? null : await this.getEmptyState(selectedChild.id),
+      emptyState: report
+        ? null
+        : await this.getEmptyState(selectedChild.id, weekStart),
     };
   }
 
@@ -170,12 +172,14 @@ export class WeeklyReportsService {
   }
 
   async generateForWeek(input: {
-    weekStart: string;
+    weekStart?: string;
     forceRegenerate?: boolean;
   }): Promise<{ processed: number; generated: number; skipped: number }> {
-    const weekStart = parseDateOnly(input.weekStart);
+    const weekStartKey =
+      input.weekStart ?? getPreviousCompletedWeekStart(new Date());
+    const weekStart = parseDateOnly(weekStartKey);
     const weekEnd = addDays(weekStart, 6);
-    const rangeStart = new Date(`${input.weekStart}T00:00:00+09:00`);
+    const rangeStart = new Date(`${weekStartKey}T00:00:00+09:00`);
     const rangeEnd = new Date(`${toUtcDateOnly(weekEnd)}T23:59:59.999+09:00`);
     const children = await this.prisma.child.findMany({
       where: { deletedAt: null },
@@ -259,6 +263,7 @@ export class WeeklyReportsService {
 
   private async getEmptyState(
     childId: string,
+    weekStartKey: string,
   ): Promise<WeeklyReportCurrentResponse['emptyState']> {
     const completedMissionCount = await this.prisma.missionExecution.count({
       where: {
@@ -273,6 +278,30 @@ export class WeeklyReportsService {
         title: '아직 주간 리포트가 없습니다',
         description:
           '미션을 수행하고 아이와의 소중한 순간을 기록해보세요. 일주일 후 첫 리포트를 확인할 수 있습니다.',
+        ctaLabel: '미션 시작하기',
+        ctaHref: '/mission',
+      };
+    }
+
+    const weekStart = parseDateOnly(weekStartKey);
+    const weekEnd = addDays(weekStart, 6);
+    const weeklyCompletedMissionCount =
+      await this.prisma.missionExecution.count({
+        where: {
+          childId,
+          status: { in: ['completed', 'early_completed'] },
+          completedAt: {
+            gte: new Date(`${weekStartKey}T00:00:00+09:00`),
+            lte: new Date(`${toUtcDateOnly(weekEnd)}T23:59:59.999+09:00`),
+          },
+        },
+      });
+
+    if (weeklyCompletedMissionCount > 0) {
+      return {
+        reason: 'report_generation_pending',
+        title: '리포트를 준비 중이에요',
+        description: '준비가 완료되면 적당한 시간에 알림으로 알려드릴게요.',
         ctaLabel: '미션 시작하기',
         ctaHref: '/mission',
       };

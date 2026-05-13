@@ -118,6 +118,32 @@ void describe('WeeklyReportsService', () => {
     assert.equal(result.emptyState?.title, '아직 주간 리포트가 없습니다');
   });
 
+  void it('returns pending when the target week has missions but no report yet', async () => {
+    const prisma = createPrismaStub({
+      children: [
+        {
+          id: 'child-1',
+          userId: 'user-1',
+          name: '김유스',
+          birthDate: new Date('2023-04-20T00:00:00+09:00'),
+          displayOrder: 0,
+          createdAt: new Date('2026-05-01T00:00:00+09:00'),
+        },
+      ],
+      report: null,
+      completedMissionCounts: [1, 1],
+    });
+    const service = new WeeklyReportsService(prisma);
+
+    const result = await service.getCurrent('user-1', {
+      today: new Date('2026-05-11T00:03:00+09:00'),
+    });
+
+    assert.equal(result.report, null);
+    assert.equal(result.emptyState?.reason, 'report_generation_pending');
+    assert.equal(result.emptyState?.title, '리포트를 준비 중이에요');
+  });
+
   void it('keeps the report visible and returns keyword empty copy when feedback keywords are absent', async () => {
     const prisma = createPrismaStub({
       children: [
@@ -235,21 +261,150 @@ void describe('WeeklyReportsService', () => {
       { rank: 2, keyword: '공룡' },
     ]);
   });
+
+  void it('skips weekly report generation when a child has no completed missions for the week', async () => {
+    const createCalls: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [createChild()],
+      report: null,
+      executions: [],
+      onCreateReport: (args) => createCalls.push(args),
+    });
+    const service = new WeeklyReportsService(prisma);
+
+    const result = await service.generateForWeek({
+      weekStart: '2026-05-04',
+    });
+
+    assert.deepEqual(result, {
+      processed: 1,
+      generated: 0,
+      skipped: 1,
+    });
+    assert.equal(createCalls.length, 0);
+  });
+
+  void it('creates a report with empty top keywords when feedback keywords are absent', async () => {
+    const createCalls: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [createChild()],
+      report: null,
+      executions: [
+        {
+          id: 'execution-1',
+          userId: 'user-1',
+          childId: 'child-1',
+          missionId: 'mission-1',
+          status: 'completed',
+          completedAt: new Date('2026-05-04T10:00:00+09:00'),
+          actualDurationSeconds: 600,
+          mission: { durationMinutes: 10 },
+          feedback: {
+            childReaction: 5,
+            parentEnergy: 4,
+            keywords: [],
+          },
+        },
+      ],
+      onCreateReport: (args) => createCalls.push(args),
+    });
+    const service = new WeeklyReportsService(prisma);
+
+    const result = await service.generateForWeek({
+      weekStart: '2026-05-04',
+    });
+
+    assert.equal(result.generated, 1);
+    const createData = createCalls[0] as {
+      data: {
+        topKeywords: { create: Array<{ rank: number; keyword: string }> };
+      };
+    };
+    assert.deepEqual(createData.data.topKeywords.create, []);
+  });
+
+  void it('skips an existing report during regular generation', async () => {
+    const createCalls: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [createChild()],
+      report: createReport(),
+      executions: [
+        {
+          id: 'execution-1',
+          userId: 'user-1',
+          childId: 'child-1',
+          missionId: 'mission-1',
+          status: 'completed',
+          completedAt: new Date('2026-05-04T10:00:00+09:00'),
+          actualDurationSeconds: 600,
+          mission: { durationMinutes: 10 },
+          feedback: null,
+        },
+      ],
+      onCreateReport: (args) => createCalls.push(args),
+    });
+    const service = new WeeklyReportsService(prisma);
+
+    const result = await service.generateForWeek({
+      weekStart: '2026-05-04',
+    });
+
+    assert.deepEqual(result, {
+      processed: 1,
+      generated: 0,
+      skipped: 1,
+    });
+    assert.equal(createCalls.length, 0);
+  });
 });
+
+function createChild() {
+  return {
+    id: 'child-1',
+    userId: 'user-1',
+    name: '김유스',
+    birthDate: new Date('2023-04-20T00:00:00+09:00'),
+    displayOrder: 0,
+    createdAt: new Date('2026-05-01T00:00:00+09:00'),
+  };
+}
+
+function createReport() {
+  return {
+    id: 'report-1',
+    userId: 'user-1',
+    childId: 'child-1',
+    weekStart: new Date('2026-05-04T00:00:00+09:00'),
+    weekEnd: new Date('2026-05-10T00:00:00+09:00'),
+    headline: '지금 충분히 잘하고 계십니다.',
+    headlineBody: '짧은 시간도 아이에게는 충분한 연결의 경험이에요.',
+    totalMissionDurationSeconds: 600,
+    childPositiveReactionRate: 0.5,
+    psychologicalEnergy: 50,
+    aiActionSuggestion: '다음 미션을 이어가보세요.',
+    generatedAt: new Date('2026-05-11T00:05:00+09:00'),
+    days: [],
+    topKeywords: [],
+    bestMoments: [],
+  };
+}
 
 function createPrismaStub({
   children,
   report,
   completedMissionCount = 1,
+  completedMissionCounts,
   executions = [],
   onCreateReport,
 }: {
   children: Awaited<ReturnType<WeeklyReportsPrisma['child']['findMany']>>;
   report: Awaited<ReturnType<WeeklyReportsPrisma['weeklyReport']['findFirst']>>;
   completedMissionCount?: number;
+  completedMissionCounts?: number[];
   executions?: unknown[];
   onCreateReport?: (args: unknown) => void;
 }): WeeklyReportsPrisma {
+  let countCallIndex = 0;
   return {
     child: {
       findMany: () => Promise.resolve(children),
@@ -263,7 +418,10 @@ function createPrismaStub({
       },
     },
     missionExecution: {
-      count: () => Promise.resolve(completedMissionCount),
+      count: () =>
+        Promise.resolve(
+          completedMissionCounts?.[countCallIndex++] ?? completedMissionCount,
+        ),
       findMany: () => Promise.resolve(executions),
     },
     notification: {
