@@ -137,27 +137,63 @@ async function importMilestones() {
     { idx: 6, slug: 'tip' },
   ];
 
-  let count = 0;
+  // 1단계: CSV에서 모든 마일스톤 추출
+  type Item = {
+    categoryId: string;
+    ageMonths: number;
+    description: string;
+    citation?: string;
+  };
+  const items: Item[] = [];
   for (let i = 3; i < rows.length; i++) {
     const row = rows[i];
     const ageMonths = toAgeMonths(row[1]);
     if (ageMonths === null) continue;
     const citation = row[7]?.trim();
-
     for (const { idx, slug } of CAT_COLS) {
       const desc = row[idx]?.trim();
       if (!desc) continue;
-      await prisma.milestone.create({
-        data: {
-          categoryId: slug,
-          ageMonthsFrom: ageMonths,
-          ageMonthsTo: ageMonths,
-          description: desc,
-          sources: citation ? { create: [{ citation }] } : undefined,
-        },
+      items.push({
+        categoryId: slug,
+        ageMonths,
+        description: desc,
+        citation: citation || undefined,
       });
-      count++;
     }
+  }
+
+  // 2단계: 카테고리별 distinct ageMonths 정렬 → 인접 시점 cover 매핑
+  // CSV는 단일 시점("2개월", "4개월", ...)이지만 그대로 두면 사이 월령(예: 3개월)이 비게 됨.
+  // 따라서 각 마일스톤의 ageMonthsFrom = 직전 시점(첫 시점은 0), ageMonthsTo = 현재 시점.
+  // 예: emotion 카테고리 시점이 [2, 4, 6, 9, ...]라면
+  //     2개월 마일스톤 → from=0, to=2
+  //     4개월         → from=2, to=4
+  //     6개월         → from=4, to=6
+  //     9개월         → from=6, to=9 ...
+  const byCat = new Map<string, number[]>();
+  for (const it of items) {
+    if (!byCat.has(it.categoryId)) byCat.set(it.categoryId, []);
+    const arr = byCat.get(it.categoryId)!;
+    if (!arr.includes(it.ageMonths)) arr.push(it.ageMonths);
+  }
+  for (const arr of byCat.values()) arr.sort((a, b) => a - b);
+
+  let count = 0;
+  for (const it of items) {
+    const ages = byCat.get(it.categoryId)!;
+    const idx = ages.indexOf(it.ageMonths);
+    const from = idx === 0 ? 0 : ages[idx - 1];
+    const to = it.ageMonths;
+    await prisma.milestone.create({
+      data: {
+        categoryId: it.categoryId,
+        ageMonthsFrom: from,
+        ageMonthsTo: to,
+        description: it.description,
+        sources: it.citation ? { create: [{ citation: it.citation }] } : undefined,
+      },
+    });
+    count++;
   }
   console.log(`✓ milestones imported: ${count}`);
 }
@@ -218,8 +254,17 @@ async function importMissionsFile(
   console.log(`✓ ${label}: ${count} missions imported (skipped: ${skipped})`);
 }
 
+async function wipe() {
+  // cascade로 MissionTag·MissionSource·MilestoneSource까지 정리.
+  // MissionExecution은 dev에 비어있다고 가정 (실행 기록 있으면 FK 제약으로 실패 → manual cleanup).
+  await prisma.mission.deleteMany();
+  await prisma.milestone.deleteMany();
+  console.log('✓ wiped milestones + missions');
+}
+
 async function main() {
   console.log('===== CSV import =====');
+  await wipe();
   await seedCategories();
   await importMilestones();
 
