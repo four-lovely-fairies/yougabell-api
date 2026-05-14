@@ -5,38 +5,55 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { AuthenticatedUser, RequestWithUser } from './auth.types';
 
-export interface AuthenticatedRequest extends Request {
-  user: { id: string };
-}
+export type AuthenticatedRequest = Request & RequestWithUser;
 
-/**
- * 인증 가드.
- *
- * TODO(auth): Supabase JWT 검증 구현. 현재는 placeholder로
- * `x-user-id` 헤더(UUID)를 받아서 `req.user`에 주입.
- * 실 배포 전 다음으로 교체:
- *   - Authorization: Bearer <token>
- *   - SUPABASE_JWT_SECRET 으로 검증 (jose/jsonwebtoken)
- *   - User 도메인 row lazy-create
- */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    const userId = req.headers['x-user-id'];
+  private readonly jwks = createRemoteJWKSet(
+    new URL(requireEnv('SUPABASE_JWKS_URL')),
+  );
+  private readonly issuer = `${requireEnv('SUPABASE_URL')}/auth/v1`;
 
-    if (typeof userId !== 'string' || !this.isUuid(userId)) {
-      throw new UnauthorizedException({ code: 'UNAUTHORIZED' });
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context
+      .switchToHttp()
+      .getRequest<Request & Partial<RequestWithUser>>();
+    const token = getBearerToken(req);
+
+    try {
+      const { payload } = await jwtVerify(token, this.jwks, {
+        issuer: this.issuer,
+      });
+      if (!payload.sub) {
+        throw new UnauthorizedException('Missing JWT subject');
+      }
+      req.user = {
+        id: payload.sub,
+        email: typeof payload.email === 'string' ? payload.email : undefined,
+      } satisfies AuthenticatedUser;
+      return true;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      throw new UnauthorizedException('Invalid access token');
     }
-
-    req.user = { id: userId };
-    return true;
   }
+}
 
-  private isUuid(value: string): boolean {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      value,
-    );
+function getBearerToken(req: Request): string {
+  const auth = req.headers.authorization;
+  if (!auth) throw new UnauthorizedException('Missing authorization header');
+  const [scheme, token] = auth.split(' ');
+  if (scheme !== 'Bearer' || !token) {
+    throw new UnauthorizedException('Invalid authorization header');
   }
+  return token;
+}
+
+function requireEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`${name} is required`);
+  return v;
 }

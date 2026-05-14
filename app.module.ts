@@ -6,7 +6,11 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { OnboardingCompleteGuard } from './auth/onboarding-complete.guard';
 import { ChildrenModule } from './children/children.module';
+import { GrowthStagesModule } from './growth-stages/growth-stages.module';
 import { HomeModule } from './home/home.module';
+import { MilestoneCategoriesModule } from './milestone-categories/milestone-categories.module';
+import { MilestonesModule } from './milestones/milestones.module';
+import { MissionsModule } from './missions/missions.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -24,6 +28,10 @@ import { WeeklyReportsModule } from './weekly-reports/weekly-reports.module';
     NotificationsModule,
     ChildrenModule,
     WeeklyReportsModule,
+    MilestoneCategoriesModule,
+    MilestonesModule,
+    GrowthStagesModule,
+    MissionsModule,
   ],
   controllers: [AppController],
   providers: [
