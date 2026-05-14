@@ -35,7 +35,7 @@ export class OnboardingCompleteGuard implements CanActivate {
 
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
     if (!req.user) {
-      this.jwtAuthGuard.canActivate(context);
+      await this.jwtAuthGuard.canActivate(context);
     }
 
     const user = await this.prisma.user.findUnique({
