@@ -1,0 +1,285 @@
+/**
+ * CSV → DB 일회성 임포트 스크립트.
+ *
+ * 입력 위치: 워크스페이스 루트 (yougabell-api 상위)에 놓인 다음 5개 파일.
+ *   - [youth] 워킹맘 MVP 데이터 가공 - 마일스톤 데이터.csv
+ *   - [youth] 워킹맘 MVP 데이터 가공 - 손서현_미션데이터.csv
+ *   - [youth] 워킹맘 MVP 데이터 가공 - 오유현_미션데이터.csv
+ *   - [youth] 워킹맘 MVP 데이터 가공 - 김성훈_미션 데이터(30개월~5년).csv
+ *
+ * 1. MilestoneCategory 5종(emotion/language/cognition/physical/tip) upsert
+ * 2. 마일스톤 wide → long 변환 후 Milestone + MilestoneSource insert
+ * 3. 미션 3개 파일 → Mission + MissionSource insert (운영자별 시트 컬럼 매핑 다름)
+ *
+ * 실행: `pnpm exec ts-node scripts/import-csv-data.ts`
+ * 주의: 멱등성 없음. 중복 실행 시 데이터 중복 생성.
+ */
+import 'dotenv/config';
+
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
+import { parse } from 'csv-parse/sync';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+const WORKSPACE_ROOT = path.resolve(__dirname, '..', '..');
+
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL!,
+});
+const prisma = new PrismaClient({ adapter });
+
+const CATEGORIES = [
+  {
+    id: 'emotion',
+    label: '사회성·감정',
+    iconKey: 'heart',
+    color: '#FFB3C7',
+    displayOrder: 0,
+  },
+  {
+    id: 'language',
+    label: '언어·소통',
+    iconKey: 'mic',
+    color: '#A4D4FF',
+    displayOrder: 1,
+  },
+  {
+    id: 'cognition',
+    label: '인지',
+    iconKey: 'brain',
+    color: '#FFD580',
+    displayOrder: 2,
+  },
+  {
+    id: 'physical',
+    label: '움직임·신체',
+    iconKey: 'run',
+    color: '#B5E48C',
+    displayOrder: 3,
+  },
+  {
+    id: 'tip',
+    label: '팁/그 외',
+    iconKey: 'lightbulb',
+    color: '#CDB4DB',
+    displayOrder: 4,
+  },
+];
+
+function mapCategory(raw?: string): string | null {
+  if (!raw) return null;
+  const t = raw.replace(/[#/\s]/g, '').toLowerCase();
+  if (/사회|감정|emotion/.test(t)) return 'emotion';
+  if (/언어|소통|language/.test(t)) return 'language';
+  if (/인지|cognition/.test(t)) return 'cognition';
+  if (/신체|움직임|physical/.test(t)) return 'physical';
+  return null;
+}
+
+function toMinutes(raw?: string): number | null {
+  if (!raw) return null;
+  const m = String(raw).match(/\d+/);
+  return m ? parseInt(m[0], 10) : null;
+}
+
+/**
+ * CSV "아이 나이" 컬럼 → 개월수.
+ * - 단순 정수(2, 12, 30, 60): 그대로 개월수
+ * - 0.x 표기(0.16): x*100 — 운영자 가이드 "16개월 -> 0.16"
+ */
+function toAgeMonths(raw?: string): number | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (/^0\.\d+$/.test(trimmed)) {
+    const decimal = parseFloat(trimmed);
+    return Math.round(decimal * 100);
+  }
+  const m = trimmed.match(/^\d+/);
+  if (!m) return null;
+  const n = parseInt(m[0], 10);
+  if (!Number.isFinite(n) || n < 0 || n > 120) return null;
+  return n;
+}
+
+function readCsv(filename: string): string[][] {
+  const file = path.join(WORKSPACE_ROOT, filename);
+  const raw = readFileSync(file, 'utf-8');
+  return parse(raw, {
+    skip_empty_lines: false,
+    relax_column_count: true,
+  }) as string[][];
+}
+
+async function seedCategories() {
+  for (const c of CATEGORIES) {
+    await prisma.milestoneCategory.upsert({
+      where: { id: c.id },
+      create: c,
+      update: c,
+    });
+  }
+  console.log(`✓ categories upserted: ${CATEGORIES.length}`);
+}
+
+async function importMilestones() {
+  const rows = readCsv(
+    '[youth] 워킹맘 MVP 데이터 가공 - 마일스톤 데이터.csv',
+  );
+  // 헤더는 index 2. 컬럼:
+  //   0:아이 나이(그룹 라벨)  1:월별  2:사회성·감정  3:언어·소통  4:인지  5:움직임·신체  6:그 외(Tip)  7:자료 출처
+  const CAT_COLS = [
+    { idx: 2, slug: 'emotion' },
+    { idx: 3, slug: 'language' },
+    { idx: 4, slug: 'cognition' },
+    { idx: 5, slug: 'physical' },
+    { idx: 6, slug: 'tip' },
+  ];
+
+  let count = 0;
+  for (let i = 3; i < rows.length; i++) {
+    const row = rows[i];
+    const ageMonths = toAgeMonths(row[1]);
+    if (ageMonths === null) continue;
+    const citation = row[7]?.trim();
+
+    for (const { idx, slug } of CAT_COLS) {
+      const desc = row[idx]?.trim();
+      if (!desc) continue;
+      await prisma.milestone.create({
+        data: {
+          categoryId: slug,
+          ageMonthsFrom: ageMonths,
+          ageMonthsTo: ageMonths,
+          description: desc,
+          sources: citation ? { create: [{ citation }] } : undefined,
+        },
+      });
+      count++;
+    }
+  }
+  console.log(`✓ milestones imported: ${count}`);
+}
+
+type MissionMap = {
+  ageIdx: number;
+  shortIdx: number;
+  descIdx: number;
+  durIdx: number;
+  effectIdx: number;
+  tagIdx: number;
+  srcIdx: number;
+  goalIdx?: number;
+};
+
+async function importMissionsFile(
+  filename: string,
+  headerRowIdx: number,
+  map: MissionMap,
+  label: string,
+) {
+  const rows = readCsv(filename);
+  let count = 0;
+  let skipped = 0;
+  for (let i = headerRowIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const ageMonths = toAgeMonths(row[map.ageIdx]);
+    const shortTitle = row[map.shortIdx]?.trim();
+    const description = row[map.descIdx]?.trim();
+    const effect = row[map.effectIdx]?.trim();
+    const dur = toMinutes(row[map.durIdx]);
+    const category = mapCategory(row[map.tagIdx]);
+    const citation = row[map.srcIdx]?.trim();
+    const goal =
+      map.goalIdx !== undefined ? row[map.goalIdx]?.trim() : undefined;
+
+    if (!shortTitle || !description || !effect || dur === null || !category) {
+      skipped++;
+      continue;
+    }
+
+    await prisma.mission.create({
+      data: {
+        categoryId: category,
+        title: shortTitle,
+        shortTitle,
+        description,
+        durationMinutes: dur,
+        effect,
+        recommendedAgeMonthsMin: ageMonths ?? undefined,
+        recommendedAgeMonthsMax: ageMonths ?? undefined,
+        goal: goal || undefined,
+        sources: citation ? { create: [{ citation }] } : undefined,
+      },
+    });
+    count++;
+  }
+  console.log(`✓ ${label}: ${count} missions imported (skipped: ${skipped})`);
+}
+
+async function main() {
+  console.log('===== CSV import =====');
+  await seedCategories();
+  await importMilestones();
+
+  // 손서현 — 헤더 idx 2: 아이개월수=0, 태그=1, 시간=2, 키워드=3, 미션=4, 효과=5, 출처=6
+  await importMissionsFile(
+    '[youth] 워킹맘 MVP 데이터 가공 - 손서현_미션데이터.csv',
+    2,
+    {
+      ageIdx: 0,
+      tagIdx: 1,
+      durIdx: 2,
+      shortIdx: 3,
+      descIdx: 4,
+      effectIdx: 5,
+      srcIdx: 6,
+    },
+    '손서현',
+  );
+
+  // 오유현 — 헤더 idx 6: 아이나이=0, 시간=1, 키워드=2, 미션=3, 효과=4, 태그=5, 출처=6, _=7, 목표=8
+  await importMissionsFile(
+    '[youth] 워킹맘 MVP 데이터 가공 - 오유현_미션데이터.csv',
+    6,
+    {
+      ageIdx: 0,
+      durIdx: 1,
+      shortIdx: 2,
+      descIdx: 3,
+      effectIdx: 4,
+      tagIdx: 5,
+      srcIdx: 6,
+      goalIdx: 8,
+    },
+    '오유현',
+  );
+
+  // 김성훈 — 헤더 idx 7: 아이나이=0, 목표=1, 부모유형=2, 시간=3, 키워드=4, 미션=5, 효과=6, 태그=7, 출처=8
+  await importMissionsFile(
+    '[youth] 워킹맘 MVP 데이터 가공 - 김성훈_미션 데이터(30개월~5년).csv',
+    7,
+    {
+      ageIdx: 0,
+      goalIdx: 1,
+      durIdx: 3,
+      shortIdx: 4,
+      descIdx: 5,
+      effectIdx: 6,
+      tagIdx: 7,
+      srcIdx: 8,
+    },
+    '김성훈',
+  );
+
+  console.log('===== done =====');
+}
+
+main()
+  .then(() => prisma.$disconnect())
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
+  });
