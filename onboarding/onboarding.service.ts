@@ -35,11 +35,16 @@ export class OnboardingService {
         notificationTime: dto.notification.time ?? null,
         onboardedAt: new Date(),
       };
+      const createData: Prisma.UserUncheckedCreateInput = {
+        id: userId,
+        ...data,
+      };
+      const updateData: Prisma.UserUncheckedUpdateInput = data;
 
       await tx.user.upsert({
         where: { id: userId },
-        create: { id: userId, ...data },
-        update: data,
+        create: createData,
+        update: updateData,
       });
 
       await tx.child.createMany({

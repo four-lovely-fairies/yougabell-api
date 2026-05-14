@@ -7,9 +7,10 @@ import {
 import { MissionExecutionStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  calculateMonthTogetherDaysPercent,
+  formatDurationLabel,
   getAgeLabel,
   getAgeMonths,
+  getPreviousCompletedWeekStart,
   getWeekInfo,
   toDateOnly,
 } from './home-date.utils';
@@ -61,14 +62,12 @@ export class HomeService {
     const weekInfo = getWeekInfo(today);
     const weekStart = new Date(`${weekInfo.days[0]?.date}T00:00:00+09:00`);
     const weekEnd = new Date(`${weekInfo.days[6]?.date}T23:59:59.999+09:00`);
-    const todayKey = toSeoulDateKey(today);
-    const monthStart = new Date(`${todayKey.slice(0, 8)}01T00:00:00+09:00`);
-    const todayEnd = new Date(`${todayKey}T23:59:59.999+09:00`);
+    const previousWeekStart = getPreviousCompletedWeekStart(today);
 
     const [
       batteryChecks,
       weeklyExecutions,
-      monthlyCompletedExecutions,
+      latestWeeklyReport,
       growthStage,
       recommendedMission,
       unreadCount,
@@ -87,13 +86,11 @@ export class HomeService {
           startedAt: { gte: weekStart, lte: weekEnd },
         },
       }),
-      this.prisma.missionExecution.findMany({
+      this.prisma.weeklyReport.findFirst({
         where: {
           childId: selectedChild.id,
-          status: { in: COMPLETED_MISSION_STATUSES },
-          completedAt: { gte: monthStart, lte: todayEnd },
+          weekStart: previousWeekStart,
         },
-        select: { completedAt: true },
       }),
       this.prisma.growthStage.findFirst({
         where: {
@@ -131,13 +128,6 @@ export class HomeService {
         ),
     );
 
-    const progress = calculateMonthTogetherDaysPercent(
-      monthlyCompletedExecutions
-        .map((execution) => execution.completedAt)
-        .filter((date): date is Date => date instanceof Date),
-      today,
-    );
-
     return {
       selectedChild: toHomeChild(selectedChild, today),
       children: children.map((child) => toHomeChild(child, today)),
@@ -166,10 +156,22 @@ export class HomeService {
             summary: growthStage.summary,
           }
         : null,
-      reportSummary: {
-        ...progress,
-        label: '이번 달 함께한 날',
-      },
+      reportSummary: latestWeeklyReport
+        ? {
+            reportId: latestWeeklyReport.id,
+            weekStart: toDateOnly(latestWeeklyReport.weekStart),
+            weekEnd: toDateOnly(latestWeeklyReport.weekEnd),
+            title: '지난주 아이와 함께한 놀이 시간',
+            totalDurationSeconds:
+              latestWeeklyReport.totalMissionDurationSeconds,
+            totalDurationLabel: formatDurationLabel(
+              latestWeeklyReport.totalMissionDurationSeconds,
+            ),
+            childPositiveReactionRate: Math.round(
+              latestWeeklyReport.childPositiveReactionRate * 100,
+            ),
+          }
+        : null,
       notifications: {
         unreadCount,
         latest: latestNotifications.map(toHomeNotification),

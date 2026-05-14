@@ -1,10 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  calculateMonthTogetherDaysPercent,
+  formatDurationLabel,
   getAgeMonths,
   getAgeLabel,
+  getPreviousCompletedWeekStart,
   getWeekInfo,
+  toDateOnly,
 } from './home-date.utils';
 
 void describe('home date utilities', () => {
@@ -45,22 +47,18 @@ void describe('home date utilities', () => {
     assert.equal(previousMonthWeek.weekOfMonthLabel, '5주차');
   });
 
-  void it('calculates month progress from distinct completed mission dates', () => {
-    const result = calculateMonthTogetherDaysPercent(
-      [
-        new Date('2026-05-01T09:00:00+09:00'),
-        new Date('2026-05-01T10:00:00+09:00'),
-        new Date('2026-05-03T10:00:00+09:00'),
-        new Date('2026-05-12T10:00:00+09:00'),
-      ],
-      new Date('2026-05-12T12:00:00+09:00'),
+  void it('finds the previous completed week for weekly report summaries', () => {
+    const result = getPreviousCompletedWeekStart(
+      new Date('2026-05-15T12:00:00+09:00'),
     );
 
-    assert.deepEqual(result, {
-      completedDays: 3,
-      elapsedDays: 12,
-      monthTogetherDaysPercent: 25,
-    });
+    assert.equal(toDateOnly(result), '2026-05-04');
+  });
+
+  void it('formats duration labels for home weekly report summaries', () => {
+    assert.equal(formatDurationLabel(17 * 60), '17분');
+    assert.equal(formatDurationLabel(60 * 60), '1시간');
+    assert.equal(formatDurationLabel(77 * 60), '1시간 17분');
   });
 
   void it('formats child age from birth date', () => {

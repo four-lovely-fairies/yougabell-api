@@ -4,7 +4,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { WeeklyReportsInternalController } from './weekly-reports.internal.controller';
 
 void describe('WeeklyReportsInternalController', () => {
-  void it('rejects requests with a missing or invalid cron secret', async () => {
+  void it('rejects requests with a missing or invalid cron secret', () => {
     const controller = new WeeklyReportsInternalController({
       generateForWeek: () =>
         Promise.resolve({ processed: 0, generated: 0, skipped: 0 }),

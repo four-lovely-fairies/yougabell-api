@@ -13,12 +13,6 @@ export type HomeWeekInfo = {
   days: HomeWeekDay[];
 };
 
-export type MonthTogetherDaysProgress = {
-  monthTogetherDaysPercent: number;
-  completedDays: number;
-  elapsedDays: number;
-};
-
 const WEEKDAY_LABELS: WeekdayLabel[] = [
   '월',
   '화',
@@ -56,30 +50,29 @@ export function getWeekInfo(today: Date): HomeWeekInfo {
   };
 }
 
-export function calculateMonthTogetherDaysPercent(
-  completedDates: Date[],
-  today: Date,
-): MonthTogetherDaysProgress {
-  const todayParts = toSeoulDateParts(today);
-  const completedDateKeys = new Set(
-    completedDates
-      .map(toSeoulDateParts)
-      .filter(
-        (date) =>
-          date.year === todayParts.year && date.month === todayParts.month,
-      )
-      .filter((date) => date.day <= todayParts.day)
-      .map((date) => `${date.year}-${pad2(date.month)}-${pad2(date.day)}`),
+export function getPreviousCompletedWeekStart(today: Date): Date {
+  const local = toSeoulDateParts(today);
+  const currentDate = new Date(
+    Date.UTC(local.year, local.month - 1, local.day),
   );
-  const completedDays = completedDateKeys.size;
-  const elapsedDays = todayParts.day;
+  const dayOfWeek = currentDate.getUTCDay();
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  currentDate.setUTCDate(currentDate.getUTCDate() - daysFromMonday - 7);
+  return currentDate;
+}
 
-  return {
-    completedDays,
-    elapsedDays,
-    monthTogetherDaysPercent:
-      elapsedDays === 0 ? 0 : Math.round((completedDays / elapsedDays) * 100),
-  };
+export function formatDurationLabel(seconds: number): string {
+  const totalMinutes = Math.round(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours === 0) {
+    return `${minutes}분`;
+  }
+  if (minutes === 0) {
+    return `${hours}시간`;
+  }
+  return `${hours}시간 ${minutes}분`;
 }
 
 export function getAgeMonths(birthDate: Date, today: Date): number {

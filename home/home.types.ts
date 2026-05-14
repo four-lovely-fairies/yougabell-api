@@ -42,10 +42,13 @@ export type HomeDashboard = {
     summary: string;
   } | null;
   reportSummary: {
-    monthTogetherDaysPercent: number;
-    completedDays: number;
-    elapsedDays: number;
-    label: string;
+    reportId: string;
+    weekStart: string;
+    weekEnd: string;
+    title: string;
+    totalDurationSeconds: number;
+    totalDurationLabel: string;
+    childPositiveReactionRate: number;
   } | null;
   notifications: {
     unreadCount: number;

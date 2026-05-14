@@ -105,17 +105,26 @@ export class HomeGrowthStageDto {
 }
 
 export class HomeReportSummaryDto {
-  @ApiProperty({ example: 84, minimum: 0, maximum: 100 })
-  monthTogetherDaysPercent!: number;
+  @ApiProperty({ format: 'uuid' })
+  reportId!: string;
 
-  @ApiProperty({ example: 10, minimum: 0 })
-  completedDays!: number;
+  @ApiProperty({ example: '2026-05-04', description: 'ISO date YYYY-MM-DD' })
+  weekStart!: string;
 
-  @ApiProperty({ example: 12, minimum: 1 })
-  elapsedDays!: number;
+  @ApiProperty({ example: '2026-05-10', description: 'ISO date YYYY-MM-DD' })
+  weekEnd!: string;
 
-  @ApiProperty({ example: '이번 달 함께한 날' })
-  label!: string;
+  @ApiProperty({ example: '지난주 아이와 함께한 놀이 시간' })
+  title!: string;
+
+  @ApiProperty({ example: 4620, minimum: 0 })
+  totalDurationSeconds!: number;
+
+  @ApiProperty({ example: '1시간 17분' })
+  totalDurationLabel!: string;
+
+  @ApiProperty({ example: 92, minimum: 0, maximum: 100 })
+  childPositiveReactionRate!: number;
 }
 
 export class HomeNotificationSummaryItemDto {
