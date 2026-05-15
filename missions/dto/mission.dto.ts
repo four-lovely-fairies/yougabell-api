@@ -9,7 +9,27 @@ import {
   Length,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+
+export class MissionSourceDto {
+  @ApiProperty({ example: 'CDC. (2023). Developmental Milestones: 12 Months.' })
+  @IsString()
+  @MaxLength(500)
+  citation!: string;
+
+  @ApiPropertyOptional({ example: 'https://cdc.gov/ncbddd/actearly' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  url?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
+}
 
 export class CreateMissionDto {
   @ApiProperty({ example: 'play' })
@@ -49,6 +69,12 @@ export class CreateMissionDto {
   @MaxLength(120)
   subThemeLabel?: string;
 
+  @ApiPropertyOptional({ example: '또래와 함께 놀이하는 초기 사회성' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  goal?: string;
+
   @ApiPropertyOptional({ minimum: 0 })
   @IsOptional()
   @IsInt()
@@ -85,6 +111,14 @@ export class CreateMissionDto {
   @ArrayMaxSize(50)
   @IsString({ each: true })
   tags?: string[];
+
+  @ApiPropertyOptional({ type: MissionSourceDto, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => MissionSourceDto)
+  sources?: MissionSourceDto[];
 }
 
 export class UpdateMissionDto {
@@ -131,6 +165,12 @@ export class UpdateMissionDto {
   @MaxLength(120)
   subThemeLabel?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  goal?: string;
+
   @ApiPropertyOptional({ minimum: 0 })
   @IsOptional()
   @IsInt()
@@ -163,6 +203,14 @@ export class UpdateMissionDto {
   @ArrayMaxSize(50)
   @IsString({ each: true })
   tags?: string[];
+
+  @ApiPropertyOptional({ type: MissionSourceDto, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => MissionSourceDto)
+  sources?: MissionSourceDto[];
 }
 
 export class ListMissionsQueryDto {
@@ -222,6 +270,9 @@ export class MissionResponseDto {
   @ApiProperty({ type: String, nullable: true })
   subThemeLabel!: string | null;
 
+  @ApiProperty({ type: String, nullable: true })
+  goal!: string | null;
+
   @ApiProperty({ type: Number, nullable: true })
   recommendedAgeMonthsMin!: number | null;
 
@@ -236,6 +287,9 @@ export class MissionResponseDto {
 
   @ApiProperty({ type: String, isArray: true })
   tags!: string[];
+
+  @ApiProperty({ type: MissionSourceDto, isArray: true })
+  sources!: MissionSourceDto[];
 
   @ApiProperty()
   createdAt!: Date;

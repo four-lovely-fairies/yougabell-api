@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateMissionDto,
   ListMissionsQueryDto,
+  MissionSourceDto,
   UpdateMissionDto,
 } from './dto/mission.dto';
 
@@ -15,6 +16,7 @@ type MissionRow = {
   durationMinutes: number;
   effect: string;
   subThemeLabel: string | null;
+  goal: string | null;
   recommendedAgeMonthsMin: number | null;
   recommendedAgeMonthsMax: number | null;
   thumbnailUrl: string | null;
@@ -22,12 +24,26 @@ type MissionRow = {
   createdAt: Date;
   updatedAt: Date;
   tags: { tag: string }[];
+  sources: { citation: string; url: string | null; note: string | null }[];
 };
 
 function toResponse(row: MissionRow) {
-  const { tags, ...rest } = row;
-  return { ...rest, tags: tags.map((t) => t.tag) };
+  const { tags, sources, ...rest } = row;
+  return {
+    ...rest,
+    tags: tags.map((t) => t.tag),
+    sources: sources.map((s) => ({
+      citation: s.citation,
+      url: s.url,
+      note: s.note,
+    })),
+  };
 }
+
+const INCLUDE = {
+  tags: { select: { tag: true } },
+  sources: { select: { citation: true, url: true, note: true } },
+};
 
 @Injectable()
 export class MissionsService {
@@ -62,7 +78,7 @@ export class MissionsService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.mission.findMany({
         where,
-        include: { tags: { select: { tag: true } } },
+        include: INCLUDE,
         orderBy: [{ categoryId: 'asc' }, { createdAt: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -83,11 +99,12 @@ export class MissionsService {
       dto.recommendedAgeMonthsMin,
       dto.recommendedAgeMonthsMax,
     );
-    const { tags, ...rest } = dto;
+    const { tags, sources, ...rest } = dto;
     const created = await this.prisma.mission.create({
       data: {
         ...rest,
         subThemeLabel: rest.subThemeLabel ?? null,
+        goal: rest.goal ?? null,
         recommendedAgeMonthsMin: rest.recommendedAgeMonthsMin ?? null,
         recommendedAgeMonthsMax: rest.recommendedAgeMonthsMax ?? null,
         thumbnailUrl: rest.thumbnailUrl ?? null,
@@ -96,10 +113,13 @@ export class MissionsService {
           tags && tags.length
             ? { createMany: { data: dedupe(tags).map((tag) => ({ tag })) } }
             : undefined,
+        sources: sources && sources.length
+          ? { createMany: { data: sources.map(toSourceRow) } }
+          : undefined,
       },
-      include: { tags: { select: { tag: true } } },
+      include: INCLUDE,
     });
-    return toResponse(created);
+    return toResponse(created as MissionRow);
   }
 
   async update(id: string, dto: UpdateMissionDto) {
@@ -107,7 +127,7 @@ export class MissionsService {
       dto.recommendedAgeMonthsMin,
       dto.recommendedAgeMonthsMax,
     );
-    const { tags, ...rest } = dto;
+    const { tags, sources, ...rest } = dto;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const mission = await tx.mission.update({
@@ -122,13 +142,21 @@ export class MissionsService {
           });
         }
       }
+      if (sources !== undefined) {
+        await tx.missionSource.deleteMany({ where: { missionId: id } });
+        if (sources.length) {
+          await tx.missionSource.createMany({
+            data: sources.map((s) => ({ missionId: id, ...toSourceRow(s) })),
+          });
+        }
+      }
       return tx.mission.findUniqueOrThrow({
         where: { id: mission.id },
-        include: { tags: { select: { tag: true } } },
+        include: INCLUDE,
       });
     });
 
-    return toResponse(updated);
+    return toResponse(updated as MissionRow);
   }
 
   async remove(id: string) {
@@ -147,4 +175,12 @@ export class MissionsService {
 
 function dedupe(tags: string[]): string[] {
   return [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
+}
+
+function toSourceRow(s: MissionSourceDto) {
+  return {
+    citation: s.citation.trim(),
+    url: s.url?.trim() || null,
+    note: s.note?.trim() || null,
+  };
 }

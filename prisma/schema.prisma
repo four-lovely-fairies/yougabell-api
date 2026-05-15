@@ -17,9 +17,9 @@ datasource db {
 // ============================================================
 
 model User {
-  id               String      @id @db.Uuid // = Supabase auth.users.id (lazy-create on first authed request)
+  id               String            @id @db.Uuid // = Supabase auth.users.id (lazy-create on first authed request)
   name             String
-  birthDate        DateTime    @db.Date
+  birthDate        DateTime          @db.Date
   gender           Gender
   workStatus       WorkStatus? // 온보딩 v2: 선택 입력 (docs/features/20260508-onboarding.md)
   // 온보딩 v3: 단일 알림 시간대 선택 (Figma 2146:4530). v2 매트릭스(UserAppUsageSlot) 폐기.
@@ -27,8 +27,8 @@ model User {
   notificationTime String? // "HH:MM" — custom일 때 필수, preset일 때 선택(미지정 시 시간대 디폴트)
   onboardedAt      DateTime? // 온보딩 완료 시각 (null = 미완료)
   parentingStyleId String? // future — see docs/schema/10-parenting-style.md
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   children             Child[]
   notifications        Notification[]
@@ -343,6 +343,8 @@ model Mission {
   durationMinutes         Int
   effect                  String
   subThemeLabel           String?
+  goal                    String? // 나잇대별 마일스톤 목표 (예: "또래와 함께 놀이하는 초기 사회성"). CSV "아이 나잇대별 마일스톤 목표" 컬럼.
+  parentingStyleId        String? // 양육 스타일 옵셔널 FK. ParentingStyle 모델 도입 후 relation 활성화.
   recommendedAgeMonthsMin Int?
   recommendedAgeMonthsMax Int?
   thumbnailUrl            String?
@@ -352,9 +354,22 @@ model Mission {
 
   category   MilestoneCategory  @relation(fields: [categoryId], references: [id])
   tags       MissionTag[]
+  sources    MissionSource[]
   executions MissionExecution[]
 
   @@index([categoryId, recommendedAgeMonthsMin, recommendedAgeMonthsMax])
+}
+
+model MissionSource {
+  id        String  @id @default(uuid()) @db.Uuid
+  missionId String  @db.Uuid
+  citation  String // "CDC", "Tomasello 1995", "Harvard", "UNICEF" 등
+  url       String?
+  note      String?
+
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
 }
 
 model MissionTag {
