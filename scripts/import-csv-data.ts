@@ -38,6 +38,46 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 
+/**
+ * GrowthStage 시드 — 0~60개월을 4단계로 cover.
+ * 출처: Erikson 심리사회 발달 단계 + Piaget 인지 발달 + 임신육아종합포털 아이사랑 월령별 가이드.
+ * docs/schema/04-roadmap.md의 GrowthStage 정의 ("월령 그룹 라벨")와 디자인 노드 851:5028에 맞춤.
+ */
+const GROWTH_STAGES = [
+  {
+    id: 'trust-attachment',
+    name: '신뢰·애착기',
+    ageMonthsFrom: 0,
+    ageMonthsTo: 6,
+    summary:
+      '감각과 반사로 세상을 처음 만나는 시기. 양육자와의 안정된 애착이 평생의 정서·인지 기반이 됩니다.',
+  },
+  {
+    id: 'sensory-discovery',
+    name: '감각 탐색',
+    ageMonthsFrom: 6,
+    ageMonthsTo: 18,
+    summary:
+      '양육자를 안전 기지 삼아 주변을 적극 탐색합니다. 대상 영속성·첫 단어·서기와 걷기가 등장합니다.',
+  },
+  {
+    id: 'self-formation',
+    name: '자아 형성기',
+    ageMonthsFrom: 18,
+    ageMonthsTo: 36,
+    summary:
+      '"나"라는 인식이 자리잡고 독립적으로 행동하려 합니다. 자율성과 의지가 빠르게 자라며 "내가 할래!"가 자주 들립니다.',
+  },
+  {
+    id: 'emotional-independence',
+    name: '정서적 독립기',
+    ageMonthsFrom: 36,
+    ageMonthsTo: 60,
+    summary:
+      '스스로 계획하고 시작하는 주도성이 발현됩니다. 또래 놀이로 사회성·감정 조절·역할놀이가 깊어집니다.',
+  },
+];
+
 const CATEGORIES = [
   {
     id: 'emotion',
@@ -130,6 +170,17 @@ async function seedCategories() {
     });
   }
   console.log(`✓ categories upserted: ${CATEGORIES.length}`);
+}
+
+async function seedGrowthStages() {
+  for (const s of GROWTH_STAGES) {
+    await prisma.growthStage.upsert({
+      where: { id: s.id },
+      create: s,
+      update: s,
+    });
+  }
+  console.log(`✓ growth stages upserted: ${GROWTH_STAGES.length}`);
 }
 
 async function importMilestones() {
@@ -275,6 +326,7 @@ async function main() {
   console.log('===== CSV import =====');
   await wipe();
   await seedCategories();
+  await seedGrowthStages();
   await importMilestones();
 
   // 손서현 — 헤더 idx 2: 아이개월수=0, 태그=1, 시간=2, 키워드=3, 미션=4, 효과=5, 출처=6
