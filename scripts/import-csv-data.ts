@@ -1,18 +1,20 @@
 /**
  * CSV → DB 일회성 임포트 스크립트.
  *
- * 입력 위치: 워크스페이스 루트 (yougabell-api 상위)에 놓인 다음 5개 파일.
+ * 입력 위치: umbrella(`yougabell/docs/seed-data/`)에 놓인 다음 5개 파일.
  *   - [youth] 워킹맘 MVP 데이터 가공 - 마일스톤 데이터.csv
  *   - [youth] 워킹맘 MVP 데이터 가공 - 손서현_미션데이터.csv
  *   - [youth] 워킹맘 MVP 데이터 가공 - 오유현_미션데이터.csv
  *   - [youth] 워킹맘 MVP 데이터 가공 - 김성훈_미션 데이터(30개월~5년).csv
  *
- * 1. MilestoneCategory 5종(emotion/language/cognition/physical/tip) upsert
- * 2. 마일스톤 wide → long 변환 후 Milestone + MilestoneSource insert
- * 3. 미션 3개 파일 → Mission + MissionSource insert (운영자별 시트 컬럼 매핑 다름)
+ * 1. wipe (mission + milestone deleteMany — cascade로 sources/tags 정리)
+ * 2. MilestoneCategory 5종(emotion/language/cognition/physical/tip) upsert
+ * 3. 마일스톤 wide → long 변환 + 카테고리별 인접 시점 cover (ageMonthsFrom = 직전 시점)
+ * 4. 미션 3개 파일 → Mission + MissionSource insert (운영자별 시트 컬럼 매핑 다름)
  *
- * 실행: `pnpm exec ts-node scripts/import-csv-data.ts`
- * 주의: 멱등성 없음. 중복 실행 시 데이터 중복 생성.
+ * 실행 (워크스페이스 루트에서):
+ *   `cd yougabell-api && pnpm exec ts-node scripts/import-csv-data.ts`
+ * 워크스페이스 mono-clone 가정: yougabell-api/scripts/ 기준 ../../yougabell/docs/seed-data/
  */
 import 'dotenv/config';
 
@@ -22,7 +24,14 @@ import { parse } from 'csv-parse/sync';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-const WORKSPACE_ROOT = path.resolve(__dirname, '..', '..');
+const SEED_DIR = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  'yougabell',
+  'docs',
+  'seed-data',
+);
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -104,7 +113,7 @@ function toAgeMonths(raw?: string): number | null {
 }
 
 function readCsv(filename: string): string[][] {
-  const file = path.join(WORKSPACE_ROOT, filename);
+  const file = path.join(SEED_DIR, filename);
   const raw = readFileSync(file, 'utf-8');
   return parse(raw, {
     skip_empty_lines: false,
