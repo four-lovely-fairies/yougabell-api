@@ -50,8 +50,7 @@ export class MissionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: ListMissionsQueryDto) {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
+    const take = query.take ?? 50;
 
     const where = {
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
@@ -75,22 +74,23 @@ export class MissionsService {
         : {}),
     };
 
-    const [rows, total] = await this.prisma.$transaction([
-      this.prisma.mission.findMany({
-        where,
-        include: INCLUDE,
-        orderBy: [{ categoryId: 'asc' }, { createdAt: 'desc' }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.mission.count({ where }),
-    ]);
+    // cursor pagination — id asc + take+1 fetch.
+    const rows = await this.prisma.mission.findMany({
+      where,
+      include: INCLUDE,
+      orderBy: { id: 'asc' },
+      take: take + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    });
+
+    const hasMore = rows.length > take;
+    const trimmed = hasMore ? rows.slice(0, take) : rows;
+    const nextCursor =
+      hasMore && trimmed.length > 0 ? trimmed[trimmed.length - 1].id : null;
 
     return {
-      items: (rows as MissionRow[]).map(toResponse),
-      total,
-      page,
-      pageSize,
+      items: (trimmed as MissionRow[]).map(toResponse),
+      nextCursor,
     };
   }
 

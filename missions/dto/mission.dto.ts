@@ -230,19 +230,19 @@ export class ListMissionsQueryDto {
   @Type(() => Number)
   ageMonths?: number;
 
-  @ApiPropertyOptional({ minimum: 1, default: 1 })
+  @ApiPropertyOptional({
+    description: 'cursor pagination — 이전 응답의 nextCursor(uuid)',
+  })
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Type(() => Number)
-  page?: number;
+  @IsString()
+  cursor?: string;
 
-  @ApiPropertyOptional({ minimum: 1, default: 20 })
+  @ApiPropertyOptional({ minimum: 1, default: 50 })
   @IsOptional()
   @IsInt()
   @Min(1)
   @Type(() => Number)
-  pageSize?: number;
+  take?: number;
 }
 
 export class MissionResponseDto {
@@ -302,12 +302,6 @@ export class ListMissionsResponseDto {
   @ApiProperty({ type: MissionResponseDto, isArray: true })
   items!: MissionResponseDto[];
 
-  @ApiProperty()
-  total!: number;
-
-  @ApiProperty()
-  page!: number;
-
-  @ApiProperty()
-  pageSize!: number;
+  @ApiProperty({ type: String, nullable: true })
+  nextCursor!: string | null;
 }

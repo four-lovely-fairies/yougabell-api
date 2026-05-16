@@ -11,8 +11,7 @@ export class MilestonesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: ListMilestonesQueryDto) {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
+    const take = query.take ?? 50;
 
     const where = {
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
@@ -24,21 +23,21 @@ export class MilestonesService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.milestone.findMany({
-        where,
-        orderBy: [
-          { categoryId: 'asc' },
-          { ageMonthsFrom: 'asc' },
-          { displayOrder: 'asc' },
-        ],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.milestone.count({ where }),
-    ]);
+    // cursor pagination — id desc(최신순) + take+1 fetch로 hasMore 판단.
+    // UI에서 카테고리/월령 정렬은 client side(누적 데이터)에서 적용.
+    const items = await this.prisma.milestone.findMany({
+      where,
+      orderBy: { id: 'asc' },
+      take: take + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    });
 
-    return { items, total, page, pageSize };
+    const hasMore = items.length > take;
+    const trimmed = hasMore ? items.slice(0, take) : items;
+    const nextCursor =
+      hasMore && trimmed.length > 0 ? trimmed[trimmed.length - 1].id : null;
+
+    return { items: trimmed, nextCursor };
   }
 
   async create(dto: CreateMilestoneDto) {
