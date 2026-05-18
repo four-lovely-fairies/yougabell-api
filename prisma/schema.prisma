@@ -390,6 +390,9 @@ model MissionExecution {
   missionId             String                 @db.Uuid
   status                MissionExecutionStatus
   startedAt             DateTime               @default(now())
+  activeSegmentStartedAt DateTime?
+  pausedAt              DateTime?
+  elapsedSeconds        Int                    @default(0)
   completedAt           DateTime?
   actualDurationSeconds Int?
   wasEarlyCompleted     Boolean                @default(false)

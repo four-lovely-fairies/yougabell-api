@@ -184,9 +184,7 @@ async function seedGrowthStages() {
 }
 
 async function importMilestones() {
-  const rows = readCsv(
-    '[youth] 워킹맘 MVP 데이터 가공 - 마일스톤 데이터.csv',
-  );
+  const rows = readCsv('[youth] 워킹맘 MVP 데이터 가공 - 마일스톤 데이터.csv');
   // 헤더는 index 2. 컬럼:
   //   0:아이 나이(그룹 라벨)  1:월별  2:사회성·감정  3:언어·소통  4:인지  5:움직임·신체  6:그 외(Tip)  7:자료 출처
   const CAT_COLS = [
@@ -250,7 +248,9 @@ async function importMilestones() {
         ageMonthsFrom: from,
         ageMonthsTo: to,
         description: it.description,
-        sources: it.citation ? { create: [{ citation: it.citation }] } : undefined,
+        sources: it.citation
+          ? { create: [{ citation: it.citation }] }
+          : undefined,
       },
     });
     count++;
