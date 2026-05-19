@@ -44,6 +44,7 @@ async function bootstrap() {
     );
   }
 
-  await app.listen(process.env.PORT ?? 3000);
+  // 포트 할당: web=3000, api=3001, admin=3002 (운영 환경에서는 PORT env로 override)
+  await app.listen(process.env.PORT ?? 3001);
 }
 void bootstrap();
