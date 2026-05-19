@@ -1,7 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Gender, NotificationSlot, WorkStatus } from '@prisma/client';
+import {
+  Gender,
+  InterestId,
+  NotificationSlot,
+  WorkStatus,
+} from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsDateString,
@@ -14,6 +20,15 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+
+const INTEREST_VALUES = [
+  'working_parent',
+  'home_care',
+  'language',
+  'social',
+  'physical',
+  'cognition',
+] satisfies InterestId[];
 
 class ParentDto {
   @ApiProperty({ example: '홍길동', minLength: 1, maxLength: 30 })
@@ -111,4 +126,17 @@ export class CompleteOnboardingDto {
   @ValidateNested()
   @Type(() => NotificationPreferenceDto)
   notification!: NotificationPreferenceDto;
+
+  @ApiPropertyOptional({
+    description:
+      '관심 주제 (최대 3개). 온보딩 02-04 화면(Figma 2146:4467) 결과.',
+    enum: INTEREST_VALUES,
+    isArray: true,
+    example: ['working_parent', 'language'],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @IsEnum(INTEREST_VALUES, { each: true })
+  interests?: InterestId[];
 }
