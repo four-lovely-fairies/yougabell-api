@@ -76,7 +76,11 @@ export class OnboardingService {
     const me = await client.user.findUnique({
       where: { id: userId },
       include: {
-        children: { orderBy: { createdAt: 'asc' } },
+        children: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+        },
+        notificationPreferences: { orderBy: { type: 'asc' } },
       },
     });
     if (me) return me;
@@ -89,11 +93,15 @@ export class OnboardingService {
       workStatus: null,
       notificationSlot: null,
       notificationTime: null,
+      interests: [],
       onboardedAt: null,
       parentingStyleId: null,
+      deletedAt: null,
+      deletionReason: null,
       createdAt: null,
       updatedAt: null,
       children: [],
+      notificationPreferences: [],
     };
   }
 }
