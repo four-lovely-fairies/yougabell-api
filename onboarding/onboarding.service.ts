@@ -33,6 +33,7 @@ export class OnboardingService {
         workStatus: dto.parent.workStatus ?? null,
         notificationSlot: dto.notification.slot,
         notificationTime: dto.notification.time ?? null,
+        interests: dto.interests ?? [],
         onboardedAt: new Date(),
       };
       const createData: Prisma.UserUncheckedCreateInput = {

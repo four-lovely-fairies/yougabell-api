@@ -13,6 +13,28 @@ import {
 
 const GENDERS = ['female', 'male'] as const satisfies Gender[];
 
+/** POST /children — 자녀 추가 (Figma 2395:9454). name·birthDate·gender 필수. */
+export class CreateChildDto {
+  @ApiProperty({ example: '김유스', minLength: 1, maxLength: 30 })
+  @IsString()
+  @Length(1, 30)
+  name!: string;
+
+  @ApiProperty({ example: '2023-04-20', description: 'ISO date YYYY-MM-DD' })
+  @IsDateString()
+  birthDate!: string;
+
+  @ApiProperty({ enum: GENDERS })
+  @IsIn(GENDERS)
+  gender!: Gender;
+
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 1000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  notes?: string | null;
+}
+
 export class UpdateChildDto {
   @ApiPropertyOptional({ example: '김유스', minLength: 1, maxLength: 30 })
   @IsOptional()

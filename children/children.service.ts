@@ -7,11 +7,35 @@ import {
 import { Gender } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../home/home-date.utils';
+import type { CreateChildDto } from './dto/child.dto';
 import { ChildResponse, UpdateChildBody } from './children.types';
 
 @Injectable()
 export class ChildrenService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** POST /children — 자녀 추가 (Figma 2395:9454). displayOrder는 자동(max+1). */
+  async createChild(
+    userId: string,
+    dto: CreateChildDto,
+  ): Promise<ChildResponse> {
+    const last = await this.prisma.child.findFirst({
+      where: { userId, deletedAt: null },
+      orderBy: { displayOrder: 'desc' },
+      select: { displayOrder: true },
+    });
+    const created = await this.prisma.child.create({
+      data: {
+        userId,
+        name: dto.name.trim(),
+        birthDate: new Date(`${dto.birthDate}T00:00:00+09:00`),
+        gender: dto.gender,
+        notes: dto.notes ?? null,
+        displayOrder: (last?.displayOrder ?? -1) + 1,
+      },
+    });
+    return toChildResponse(created);
+  }
 
   async updateChild(
     userId: string,
