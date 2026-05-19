@@ -23,21 +23,62 @@ model User {
   gender           Gender
   workStatus       WorkStatus? // 온보딩 v2: 선택 입력 (docs/features/20260508-onboarding.md)
   // 온보딩 v3: 단일 알림 시간대 선택 (Figma 2146:4530). v2 매트릭스(UserAppUsageSlot) 폐기.
+  // 설정 v1(docs/features/20260519-settings.md): NotificationPreference 모델로 종류별 관리 시작. 본 두 필드는 deprecated 예정 — onboarding 호환 위해 임시 보존.
   notificationSlot NotificationSlot?
   notificationTime String? // "HH:MM" — custom일 때 필수, preset일 때 선택(미지정 시 시간대 디폴트)
+  interests        InterestId[] // 설정/온보딩 — 최대 3개(app-level 검증)
   onboardedAt      DateTime? // 온보딩 완료 시각 (null = 미완료)
   parentingStyleId String? // future — see docs/schema/10-parenting-style.md
+  // 계정 탈퇴 (docs/features/20260519-settings.md §3.1): soft delete + 30일 grace + cron hard delete
+  deletedAt        DateTime?
+  deletionReason   String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
-  children             Child[]
-  notifications        Notification[]
-  pushTokens           UserPushToken[]
-  batteryChecks        MentalBatteryCheck[]
-  missionExecutions    MissionExecution[]
-  mentalCareExecutions MentalCareExecution[]
-  chatSessions         ChatSession[]
-  weeklyReports        WeeklyReport[]
+  children                Child[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+  pushTokens              UserPushToken[]
+  batteryChecks           MentalBatteryCheck[]
+  missionExecutions       MissionExecution[]
+  mentalCareExecutions    MentalCareExecution[]
+  chatSessions            ChatSession[]
+  weeklyReports           WeeklyReport[]
+
+  @@index([deletedAt])
+}
+
+// 관심 주제 (docs/features/20260508-onboarding.md §4 관심 주제-04 + 20260519-settings.md §3.1).
+// 1차 v1: 6 종 고정. 추가 시 본 enum에 append.
+enum InterestId {
+  working_parent // 워킹맘·대디
+  home_care // 가정보육·집놀이
+  language // 말문터지기
+  social // 사회성·또래관계
+  physical // 신체발달·에너지발산
+  cognition // 똑똑한인지학습
+}
+
+// 알림 종류별 enabled + time. (docs/features/20260519-settings.md §3.1, Figma 2395:9126)
+// v1: 10분 놀이 / 주간 리포트 2종 고정. 추가 시 NotificationType enum append.
+model NotificationPreference {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  type      NotificationPreferenceType
+  enabled   Boolean                    @default(true)
+  time      String // "HH:MM" 24h
+  updatedAt DateTime                   @updatedAt
+  createdAt DateTime                   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId])
+}
+
+enum NotificationPreferenceType {
+  play_10min // 10분 놀이 알림 (미션 알림 — 기존 notificationSlot/Time)
+  weekly_report // 주간 리포트 알림
 }
 
 enum Gender {
