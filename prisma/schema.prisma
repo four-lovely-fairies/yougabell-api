@@ -462,7 +462,7 @@ model MissionFeedback {
   id                  String   @id @default(uuid()) @db.Uuid
   executionId         String   @unique @db.Uuid
   childReaction       Int // 1..5 — app-level validation
-  parentEnergy        Int // 1..5
+  parentEnergy        Int // 0..10
   missionSatisfaction Int // 1..5
   note                String?
   createdAt           DateTime @default(now())

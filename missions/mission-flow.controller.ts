@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -15,9 +16,12 @@ import {
   GetActiveMissionExecutionQueryDto,
   GetCurrentMissionQueryDto,
   GetCurrentMissionResponseDto,
+  GetMissionExecutionEffectResponseDto,
   MissionExecutionActionBodyDto,
   MissionExecutionSnapshotResponseDto,
   StartMissionExecutionDto,
+  UpsertMissionFeedbackDto,
+  UpsertMissionFeedbackResponseDto,
 } from './dto/mission-flow.dto';
 import { MissionsService } from './missions.service';
 
@@ -67,5 +71,24 @@ export class MissionFlowController {
       id,
       body.action,
     );
+  }
+
+  @Get('mission-executions/:id/effect')
+  @ApiOkResponse({ type: GetMissionExecutionEffectResponseDto })
+  getMissionExecutionEffect(
+    @CurrentUserId() userId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.missionsService.getMissionExecutionEffect(userId, id);
+  }
+
+  @Put('mission-executions/:id/feedback')
+  @ApiOkResponse({ type: UpsertMissionFeedbackResponseDto })
+  upsertMissionFeedback(
+    @CurrentUserId() userId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: UpsertMissionFeedbackDto,
+  ) {
+    return this.missionsService.upsertMissionFeedback(userId, id, body);
   }
 }
