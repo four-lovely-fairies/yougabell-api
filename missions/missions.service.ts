@@ -18,6 +18,7 @@ import {
   GetCurrentMissionQueryDto,
   MissionExecutionSnapshotDto,
   StartMissionExecutionDto,
+  UpsertMissionFeedbackDto,
 } from './dto/mission-flow.dto';
 
 const ADMIN_MISSION_SELECT = {
@@ -58,6 +59,8 @@ type CurrentMissionRow = Prisma.MissionGetPayload<{
   select: typeof CURRENT_MISSION_SELECT;
 }>;
 
+type CurrentMissionStatus = 'not_started' | 'in_progress' | 'completed';
+
 const ACTIVE_EXECUTION_SELECT = {
   id: true,
   childId: true,
@@ -72,6 +75,48 @@ const ACTIVE_EXECUTION_SELECT = {
 
 type ActiveExecutionRow = Prisma.MissionExecutionGetPayload<{
   select: typeof ACTIVE_EXECUTION_SELECT;
+}>;
+
+const EFFECT_EXECUTION_SELECT = {
+  id: true,
+  status: true,
+  completedAt: true,
+  actualDurationSeconds: true,
+  wasEarlyCompleted: true,
+  child: { select: { deletedAt: true } },
+  mission: {
+    select: {
+      id: true,
+      title: true,
+      effect: true,
+      goal: true,
+      subThemeLabel: true,
+    },
+  },
+} satisfies Prisma.MissionExecutionSelect;
+
+const FEEDBACK_EXECUTION_SELECT = {
+  id: true,
+  status: true,
+  child: { select: { deletedAt: true } },
+} satisfies Prisma.MissionExecutionSelect;
+
+const FEEDBACK_SELECT = {
+  id: true,
+  executionId: true,
+  childReaction: true,
+  parentEnergy: true,
+  missionSatisfaction: true,
+  note: true,
+  createdAt: true,
+  keywords: {
+    select: { keyword: true, rank: true },
+    orderBy: { rank: 'asc' },
+  },
+} satisfies Prisma.MissionFeedbackSelect;
+
+type FeedbackRow = Prisma.MissionFeedbackGetPayload<{
+  select: typeof FEEDBACK_SELECT;
 }>;
 
 function toResponse(row: MissionRow) {
@@ -246,12 +291,12 @@ export class MissionsService {
     }
 
     const ageMonths = getAgeMonths(selectedChild.birthDate, today);
-    const [mission, activeExecution] = await Promise.all([
-      this.findRecommendedMission(ageMonths),
+    const [currentMission, activeExecution] = await Promise.all([
+      this.findCurrentMission(selectedChild.id, ageMonths, today),
       this.findActiveExecution(userId, selectedChild.id),
     ]);
 
-    if (!mission) {
+    if (!currentMission) {
       throw new NotFoundException({
         code: 'CURRENT_MISSION_NOT_FOUND',
         message: 'Current mission not found.',
@@ -265,14 +310,15 @@ export class MissionsService {
         ageLabel: getAgeLabel(selectedChild.birthDate, today),
       },
       mission: {
-        id: mission.id,
-        subThemeLabel: mission.subThemeLabel,
-        title: mission.title,
-        description: mission.description,
-        durationMinutes: mission.durationMinutes,
-        durationLabel: `${mission.durationMinutes}분`,
-        categoryLabel: mission.category.label,
-        sourceLabel: mission.sources[0]?.citation ?? '출처 없음',
+        id: currentMission.mission.id,
+        subThemeLabel: currentMission.mission.subThemeLabel,
+        title: currentMission.mission.title,
+        description: currentMission.mission.description,
+        durationMinutes: currentMission.mission.durationMinutes,
+        durationLabel: `${currentMission.mission.durationMinutes}분`,
+        categoryLabel: currentMission.mission.category.label,
+        sourceLabel: currentMission.mission.sources[0]?.citation ?? '출처 없음',
+        status: currentMission.status,
       },
       activeExecution: activeExecution
         ? toActiveExecution(activeExecution, new Date())
@@ -467,6 +513,137 @@ export class MissionsService {
     return { execution: null };
   }
 
+  async getMissionExecutionEffect(userId: string, executionId: string) {
+    const execution = await this.prisma.missionExecution.findFirst({
+      where: {
+        id: executionId,
+        userId,
+      },
+      select: EFFECT_EXECUTION_SELECT,
+    });
+
+    if (!execution || execution.child.deletedAt) {
+      throw new NotFoundException({
+        code: 'MISSION_EXECUTION_NOT_FOUND',
+        message: 'Mission execution not found.',
+      });
+    }
+
+    if (
+      execution.status !== 'completed' &&
+      execution.status !== 'early_completed'
+    ) {
+      throw new ConflictException({
+        code: 'MISSION_EXECUTION_NOT_FINISHED',
+        message: 'Mission execution is not finished.',
+      });
+    }
+
+    if (!execution.completedAt || execution.actualDurationSeconds === null) {
+      throw new ConflictException({
+        code: 'MISSION_EXECUTION_NOT_FINISHED',
+        message: 'Mission execution is not finished.',
+      });
+    }
+
+    return {
+      execution: {
+        id: execution.id,
+        status: execution.status,
+        completedAt: execution.completedAt.toISOString(),
+        actualDurationSeconds: execution.actualDurationSeconds,
+        wasEarlyCompleted: execution.wasEarlyCompleted,
+      },
+      mission: {
+        id: execution.mission.id,
+        title: execution.mission.title,
+        effect: execution.mission.effect,
+        goal: execution.mission.goal,
+        subThemeLabel: execution.mission.subThemeLabel,
+      },
+    };
+  }
+
+  async upsertMissionFeedback(
+    userId: string,
+    executionId: string,
+    dto: UpsertMissionFeedbackDto,
+  ) {
+    const execution = await this.prisma.missionExecution.findFirst({
+      where: {
+        id: executionId,
+        userId,
+      },
+      select: FEEDBACK_EXECUTION_SELECT,
+    });
+
+    if (!execution || execution.child.deletedAt) {
+      throw new NotFoundException({
+        code: 'MISSION_EXECUTION_NOT_FOUND',
+        message: 'Mission execution not found.',
+      });
+    }
+
+    if (
+      execution.status !== 'completed' &&
+      execution.status !== 'early_completed'
+    ) {
+      throw new ConflictException({
+        code: 'MISSION_EXECUTION_NOT_FINISHED',
+        message: 'Mission execution is not finished.',
+      });
+    }
+
+    const normalizedKeywords = normalizeMissionFeedbackKeywords(
+      dto.note ?? null,
+    );
+
+    const feedback = await this.prisma.missionFeedback.upsert({
+      where: { executionId },
+      create: {
+        executionId,
+        childReaction: dto.childReaction,
+        parentEnergy: dto.parentEnergy,
+        missionSatisfaction: dto.missionSatisfaction,
+        note: normalizeFeedbackNote(dto.note),
+        keywords: normalizedKeywords.length
+          ? {
+              createMany: {
+                data: normalizedKeywords.map((keyword, index) => ({
+                  rank: index + 1,
+                  keyword,
+                })),
+              },
+            }
+          : undefined,
+      },
+      update: {
+        childReaction: dto.childReaction,
+        parentEnergy: dto.parentEnergy,
+        missionSatisfaction: dto.missionSatisfaction,
+        note: normalizeFeedbackNote(dto.note),
+        keywords: {
+          deleteMany: {},
+          ...(normalizedKeywords.length
+            ? {
+                createMany: {
+                  data: normalizedKeywords.map((keyword, index) => ({
+                    rank: index + 1,
+                    keyword,
+                  })),
+                },
+              }
+            : {}),
+        },
+      },
+      select: FEEDBACK_SELECT,
+    });
+
+    return {
+      feedback: toMissionFeedbackResponse(feedback),
+    };
+  }
+
   private assertAgeRange(min?: number, max?: number) {
     if (min !== undefined && max !== undefined && min > max) {
       throw new BadRequestException({
@@ -529,6 +706,47 @@ export class MissionsService {
       select: CURRENT_MISSION_SELECT,
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  private async findCurrentMission(
+    childId: string,
+    ageMonths: number,
+    today: Date,
+  ): Promise<{ mission: CurrentMissionRow; status: CurrentMissionStatus } | null> {
+    const todayKey = toSeoulDateKey(today);
+    const todayStart = new Date(`${todayKey}T00:00:00+09:00`);
+    const todayEnd = new Date(`${todayKey}T23:59:59.999+09:00`);
+
+    const existingExecution = await this.prisma.missionExecution.findFirst({
+      where: {
+        childId,
+        startedAt: { gte: todayStart, lte: todayEnd },
+        status: { not: 'cancelled' },
+      },
+      orderBy: { startedAt: 'desc' },
+      select: {
+        status: true,
+        mission: { select: CURRENT_MISSION_SELECT },
+      },
+    });
+
+    if (existingExecution) {
+      return {
+        mission: existingExecution.mission,
+        status: toCurrentMissionStatus(existingExecution.status),
+      };
+    }
+
+    const mission = await this.findRecommendedMission(ageMonths);
+
+    if (!mission) {
+      return null;
+    }
+
+    return {
+      mission,
+      status: 'not_started',
+    };
   }
 
   private async findActiveExecution(
@@ -645,6 +863,23 @@ function toMissionExecutionSnapshot(
   };
 }
 
+function toCurrentMissionStatus(
+  status: MissionExecutionStatus,
+): CurrentMissionStatus {
+  if (status === 'completed' || status === 'early_completed') {
+    return 'completed';
+  }
+  if (status === 'in_progress' || status === 'paused') {
+    return 'in_progress';
+  }
+  return 'not_started';
+}
+
+function toSeoulDateKey(date: Date): string {
+  const seoul = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  return `${seoul.getUTCFullYear()}-${String(seoul.getUTCMonth() + 1).padStart(2, '0')}-${String(seoul.getUTCDate()).padStart(2, '0')}`;
+}
+
 function getRemainingSeconds(
   execution: {
     elapsedSeconds: number;
@@ -658,4 +893,46 @@ function getRemainingSeconds(
 ) {
   const totalSeconds = execution.mission.durationMinutes * 60;
   return Math.max(0, totalSeconds - getCurrentElapsedSeconds(execution, now));
+}
+
+function normalizeFeedbackNote(note: string | null | undefined) {
+  const trimmed = note?.trim() ?? '';
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeMissionFeedbackKeywords(note: string | null) {
+  const trimmed = note?.trim() ?? '';
+
+  if (!trimmed) {
+    return [];
+  }
+
+  return trimmed
+    .split(/[\n,\s]+/u)
+    .map((keyword) => keyword.trim())
+    .filter(Boolean)
+    .map(normalizeKeyword)
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
+function normalizeKeyword(keyword: string) {
+  if (!keyword) {
+    return '';
+  }
+
+  return /^[A-Za-z]+$/.test(keyword) ? keyword.toLowerCase() : keyword;
+}
+
+function toMissionFeedbackResponse(feedback: FeedbackRow) {
+  return {
+    id: feedback.id,
+    executionId: feedback.executionId,
+    childReaction: feedback.childReaction,
+    parentEnergy: feedback.parentEnergy,
+    missionSatisfaction: feedback.missionSatisfaction,
+    note: feedback.note,
+    keywords: feedback.keywords.map((keyword) => keyword.keyword),
+    createdAt: feedback.createdAt.toISOString(),
+  };
 }

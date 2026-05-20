@@ -164,6 +164,18 @@ void describe('MissionsService', () => {
         category: { label: '언어발달' },
         sources: [{ citation: 'CDC' }],
       },
+      currentDayExecution: {
+        status: 'paused',
+        mission: {
+          id: 'mission-1',
+          title: '짝짜꿍 노래 게임',
+          description: '아이와 마주 앉아 손뼉을 마주친다.',
+          subThemeLabel: '아이와 10분 가까워지기',
+          durationMinutes: 10,
+          category: { label: '언어발달' },
+          sources: [{ citation: 'CDC' }],
+        },
+      },
       activeExecution: {
         id: 'execution-1',
         childId: 'child-1',
@@ -182,11 +194,47 @@ void describe('MissionsService', () => {
 
     assert.equal(result.selectedChild.id, 'child-1');
     assert.equal(result.mission.id, 'mission-1');
+    assert.equal(result.mission.status, 'in_progress');
     assert.equal(result.mission.categoryLabel, '언어발달');
     assert.equal(result.mission.sourceLabel, 'CDC');
     assert.equal(result.activeExecution?.id, 'execution-1');
     assert.equal(result.activeExecution?.status, 'paused');
     assert.equal(result.activeExecution?.remainingSeconds, 480);
+  });
+
+  void it('marks current mission as completed when a finished execution exists today', async () => {
+    const prisma = createPrismaStub({
+      children: [
+        {
+          id: 'child-1',
+          userId: 'user-1',
+          name: '김유스',
+          birthDate: new Date('2023-04-20T00:00:00+09:00'),
+          displayOrder: 0,
+          createdAt: new Date('2026-05-01T00:00:00+09:00'),
+        },
+      ],
+      currentDayExecution: {
+        status: 'completed',
+        mission: {
+          id: 'mission-1',
+          title: '짝짜꿍 노래 게임',
+          description: '아이와 마주 앉아 손뼉을 마주친다.',
+          subThemeLabel: '아이와 10분 가까워지기',
+          durationMinutes: 10,
+          category: { label: '언어발달' },
+          sources: [{ citation: 'CDC' }],
+        },
+      },
+      activeExecution: null,
+    });
+    const service = new MissionsService(prisma as never);
+
+    const result = await service.getCurrentMission('user-1', {});
+
+    assert.equal(result.mission.id, 'mission-1');
+    assert.equal(result.mission.status, 'completed');
+    assert.equal(result.activeExecution, null);
   });
 
   void it('reuses an existing active execution instead of creating a new one', async () => {
@@ -267,6 +315,99 @@ void describe('MissionsService', () => {
     assert.equal(updateArg.data.status, 'paused');
     assert.equal(updateArg.data.elapsedSeconds >= 150, true);
     assert.equal(result.execution?.status, 'paused');
+  });
+
+  void it('returns effect payload for a finished execution', async () => {
+    const prisma = createPrismaStub({
+      effectExecution: {
+        id: 'execution-1',
+        status: 'completed',
+        completedAt: new Date('2026-05-20T10:10:00+09:00'),
+        actualDurationSeconds: 600,
+        wasEarlyCompleted: false,
+        child: { deletedAt: null },
+        mission: {
+          id: 'mission-1',
+          title: '짝짜꿍 노래 게임',
+          effect: '아이와 눈을 맞추는 시간이 늘어납니다.',
+          goal: '사회성',
+          subThemeLabel: '아이와 10분 가까워지기',
+        },
+      },
+    });
+    const service = new MissionsService(prisma as never);
+
+    const result = await service.getMissionExecutionEffect(
+      'user-1',
+      'execution-1',
+    );
+
+    assert.equal(result.execution.id, 'execution-1');
+    assert.equal(result.execution.actualDurationSeconds, 600);
+    assert.equal(result.mission.title, '짝짜꿍 노래 게임');
+    assert.equal(result.mission.goal, '사회성');
+  });
+
+  void it('upserts mission feedback with normalized keywords', async () => {
+    const upsertCalls: unknown[] = [];
+    const prisma = createPrismaStub({
+      feedbackExecution: {
+        id: 'execution-1',
+        status: 'completed',
+        child: { deletedAt: null },
+      },
+      upsertedFeedback: {
+        id: 'feedback-1',
+        executionId: 'execution-1',
+        childReaction: 5,
+        parentEnergy: 8,
+        missionSatisfaction: 4,
+        note: '공룡, Dinosaur\n자동차',
+        createdAt: new Date('2026-05-20T10:20:00+09:00'),
+        keywords: [
+          { keyword: '공룡', rank: 1 },
+          { keyword: 'dinosaur', rank: 2 },
+          { keyword: '자동차', rank: 3 },
+        ],
+      },
+      onFeedbackUpsert: (args) => upsertCalls.push(args),
+    });
+    const service = new MissionsService(prisma as never);
+
+    const result = await service.upsertMissionFeedback(
+      'user-1',
+      'execution-1',
+      {
+        childReaction: 5,
+        parentEnergy: 8,
+        missionSatisfaction: 4,
+        note: '공룡, Dinosaur\n자동차',
+      },
+    );
+
+    const upsertArg = upsertCalls[0] as {
+      create: {
+        parentEnergy: number;
+        keywords: {
+          createMany: {
+            data: Array<{ rank: number; keyword: string }>;
+          };
+        };
+      };
+      update: {
+        parentEnergy: number;
+      };
+    };
+
+    assert.equal(upsertArg.create.parentEnergy, 8);
+    assert.equal(upsertArg.update.parentEnergy, 8);
+    assert.deepEqual(upsertArg.create.keywords.createMany.data, [
+      { rank: 1, keyword: '공룡' },
+      { rank: 2, keyword: 'dinosaur' },
+      { rank: 3, keyword: '자동차' },
+    ]);
+    assert.equal(result.feedback.parentEnergy, 8);
+    assert.deepEqual(result.feedback.keywords, ['공룡', 'dinosaur', '자동차']);
   });
 });
 
@@ -358,6 +499,18 @@ function createPrismaStub(options: {
     category: { label: string };
     sources: Array<{ citation: string }>;
   } | null;
+  currentDayExecution?: {
+    status: 'in_progress' | 'paused' | 'completed' | 'early_completed';
+    mission: {
+      id: string;
+      title: string;
+      description: string;
+      subThemeLabel: string | null;
+      durationMinutes: number;
+      category: { label: string };
+      sources: Array<{ citation: string }>;
+    };
+  } | null;
   activeExecution?: {
     id: string;
     childId: string;
@@ -399,10 +552,41 @@ function createPrismaStub(options: {
     elapsedSeconds: number;
     mission: { durationMinutes: number };
   } | null;
+  effectExecution?: {
+    id: string;
+    status: 'completed' | 'early_completed';
+    completedAt: Date | null;
+    actualDurationSeconds: number | null;
+    wasEarlyCompleted: boolean;
+    child: { deletedAt: Date | null };
+    mission: {
+      id: string;
+      title: string;
+      effect: string;
+      goal: string | null;
+      subThemeLabel: string | null;
+    };
+  } | null;
+  feedbackExecution?: {
+    id: string;
+    status: 'completed' | 'early_completed';
+    child: { deletedAt: Date | null };
+  } | null;
+  upsertedFeedback?: {
+    id: string;
+    executionId: string;
+    childReaction: number;
+    parentEnergy: number;
+    missionSatisfaction: number;
+    note: string | null;
+    createdAt: Date;
+    keywords: Array<{ keyword: string; rank: number }>;
+  } | null;
   onCreate?: (args: unknown) => void;
   onUpdate?: (args: unknown) => void;
   onMissionCreate?: (args: unknown) => void;
   onMissionUpdate?: (args: unknown) => void;
+  onFeedbackUpsert?: (args: unknown) => void;
 }) {
   return {
     child: {
@@ -427,12 +611,29 @@ function createPrismaStub(options: {
       delete: () => Promise.resolve(undefined),
     },
     missionExecution: {
-      findFirst: (args: { where?: { id?: string } }) =>
-        Promise.resolve(
-          args.where?.id
-            ? (options.executionForAction ?? null)
-            : (options.activeExecution ?? null),
-        ),
+      findFirst: (args: {
+        where?: {
+          id?: string;
+          status?: { in?: string[]; not?: string };
+        };
+      }) => {
+        if (!args.where?.id) {
+          if (args.where?.status?.not === 'cancelled') {
+            return Promise.resolve(options.currentDayExecution ?? null);
+          }
+          return Promise.resolve(options.activeExecution ?? null);
+        }
+
+        if (options.effectExecution) {
+          return Promise.resolve(options.effectExecution);
+        }
+
+        if (options.feedbackExecution) {
+          return Promise.resolve(options.feedbackExecution);
+        }
+
+        return Promise.resolve(options.executionForAction ?? null);
+      },
       create: (args: unknown) => {
         options.onCreate?.(args);
         return Promise.resolve(options.activeExecution);
@@ -440,6 +641,12 @@ function createPrismaStub(options: {
       update: (args: unknown) => {
         options.onUpdate?.(args);
         return Promise.resolve(options.updatedExecution);
+      },
+    },
+    missionFeedback: {
+      upsert: (args: unknown) => {
+        options.onFeedbackUpsert?.(args);
+        return Promise.resolve(options.upsertedFeedback ?? null);
       },
     },
   };

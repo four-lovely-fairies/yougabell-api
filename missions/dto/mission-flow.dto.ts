@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class GetCurrentMissionQueryDto {
   @ApiPropertyOptional({ format: 'uuid' })
@@ -43,6 +52,9 @@ export class CurrentMissionDetailDto {
 
   @ApiProperty()
   sourceLabel!: string;
+
+  @ApiProperty({ enum: ['not_started', 'in_progress', 'completed'] })
+  status!: 'not_started' | 'in_progress' | 'completed';
 }
 
 export class ActiveMissionExecutionDto {
@@ -146,4 +158,103 @@ export class MissionExecutionActionBodyDto {
   @IsString()
   @IsIn(['pause', 'resume', 'complete', 'early_complete'])
   action!: 'pause' | 'resume' | 'complete' | 'early_complete';
+}
+
+export class MissionExecutionEffectDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ enum: ['completed', 'early_completed'] })
+  status!: 'completed' | 'early_completed';
+
+  @ApiProperty({ format: 'date-time' })
+  completedAt!: string;
+
+  @ApiProperty({ minimum: 0 })
+  actualDurationSeconds!: number;
+
+  @ApiProperty()
+  wasEarlyCompleted!: boolean;
+}
+
+export class MissionEffectDetailDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiProperty()
+  effect!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  goal!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  subThemeLabel!: string | null;
+}
+
+export class GetMissionExecutionEffectResponseDto {
+  @ApiProperty({ type: MissionExecutionEffectDto })
+  execution!: MissionExecutionEffectDto;
+
+  @ApiProperty({ type: MissionEffectDetailDto })
+  mission!: MissionEffectDetailDto;
+}
+
+export class UpsertMissionFeedbackDto {
+  @ApiProperty({ minimum: 1, maximum: 5 })
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  childReaction!: number;
+
+  @ApiProperty({ minimum: 0, maximum: 10 })
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  parentEnergy!: number;
+
+  @ApiProperty({ minimum: 1, maximum: 5 })
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  missionSatisfaction!: number;
+
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string | null;
+}
+
+export class MissionFeedbackResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  executionId!: string;
+
+  @ApiProperty({ minimum: 1, maximum: 5 })
+  childReaction!: number;
+
+  @ApiProperty({ minimum: 0, maximum: 10 })
+  parentEnergy!: number;
+
+  @ApiProperty({ minimum: 1, maximum: 5 })
+  missionSatisfaction!: number;
+
+  @ApiProperty({ type: String, nullable: true })
+  note!: string | null;
+
+  @ApiProperty({ type: [String] })
+  keywords!: string[];
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: string;
+}
+
+export class UpsertMissionFeedbackResponseDto {
+  @ApiProperty({ type: MissionFeedbackResponseDto })
+  feedback!: MissionFeedbackResponseDto;
 }
