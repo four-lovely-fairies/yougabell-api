@@ -119,13 +119,15 @@ export class CompleteOnboardingDto {
   @Type(() => ChildInputDto)
   children!: ChildInputDto[];
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: NotificationPreferenceDto,
-    description: '알림 시간대 (단일 선택, custom 옵션 포함).',
+    description:
+      '알림 시간대 (단일 선택, custom 옵션 포함). 권한 거부 또는 skip 시 미전송 가능.',
   })
+  @IsOptional()
   @ValidateNested()
   @Type(() => NotificationPreferenceDto)
-  notification!: NotificationPreferenceDto;
+  notification?: NotificationPreferenceDto;
 
   @ApiPropertyOptional({
     description:

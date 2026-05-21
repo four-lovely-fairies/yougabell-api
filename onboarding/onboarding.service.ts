@@ -31,8 +31,8 @@ export class OnboardingService {
         birthDate: new Date(dto.parent.birthDate),
         gender: dto.parent.gender,
         workStatus: dto.parent.workStatus ?? null,
-        notificationSlot: dto.notification.slot,
-        notificationTime: dto.notification.time ?? null,
+        notificationSlot: dto.notification?.slot ?? null,
+        notificationTime: dto.notification?.time ?? null,
         interests: dto.interests ?? [],
         onboardedAt: new Date(),
       };
