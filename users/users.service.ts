@@ -85,6 +85,26 @@ export class UsersService {
   }
 
   /**
+   * POST /me/reset-onboarding — 온보딩 재진입을 위한 임시 초기화.
+   * User row를 삭제해 Child·NotificationPreference 등 관련 데이터를 cascade 정리한다.
+   * Supabase auth.users 세션은 그대로 — 클라이언트에서 signOut + /onboarding/intro 이동.
+   * **개발/테스트 전용**: 운영 노출 금지. docs/features/20260519-settings.md 미반영 항목.
+   */
+  async resetOnboarding(userId: string) {
+    try {
+      await this.prisma.user.delete({ where: { id: userId } });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2025'
+      ) {
+        return;
+      }
+      throw e;
+    }
+  }
+
+  /**
    * DELETE /me — 계정 탈퇴 (soft delete).
    * deletedAt set. 실제 cascade hard delete는 cron(30일 후) 별도 작업.
    * 이미 탈퇴 처리된 사용자는 409.
