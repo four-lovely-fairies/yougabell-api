@@ -8,7 +8,7 @@
  *   - [youth] 워킹맘 MVP 데이터 가공 - 김성훈_미션 데이터(30개월~5년).csv
  *
  * 1. wipe (mission + milestone deleteMany — cascade로 sources/tags 정리)
- * 2. MilestoneCategory 5종(emotion/language/cognition/physical/tip) upsert
+ * 2. MilestoneCategory 4종(social/language/cognitive/physical) upsert — CDC Act Early 발달 영역 (docs/features/20260523-roadmap.md)
  * 3. 마일스톤 wide → long 변환 + 카테고리별 인접 시점 cover (ageMonthsFrom = 직전 시점)
  * 4. 미션 3개 파일 → Mission + MissionSource insert (운영자별 시트 컬럼 매핑 다름)
  *
@@ -78,50 +78,53 @@ const GROWTH_STAGES = [
   },
 ];
 
+/**
+ * CDC Act Early 발달 영역 4종.
+ * 구 5종(emotion/language/cognition/physical/tip)에서 전환 — 기획 문서 §3.1 결정 2026-05-23.
+ * 라벨·아이콘은 Figma `2516:5394` 외 카테고리 카드 노드 기준.
+ */
 const CATEGORIES = [
   {
-    id: 'emotion',
-    label: '사회성·감정',
-    iconKey: 'heart',
-    color: '#FFB3C7',
+    id: 'social',
+    label: '사회성',
+    iconKey: 'groups',
+    color: '#FFF1D6',
     displayOrder: 0,
   },
   {
     id: 'language',
-    label: '언어·소통',
-    iconKey: 'mic',
-    color: '#A4D4FF',
+    label: '언어',
+    iconKey: 'dictionary',
+    color: '#E5ECFF',
     displayOrder: 1,
   },
   {
-    id: 'cognition',
+    id: 'cognitive',
     label: '인지',
-    iconKey: 'brain',
-    color: '#FFD580',
+    iconKey: 'psychology_alt',
+    color: '#EFE4FF',
     displayOrder: 2,
   },
   {
     id: 'physical',
-    label: '움직임·신체',
-    iconKey: 'run',
-    color: '#B5E48C',
+    label: '신체',
+    iconKey: 'barefoot',
+    color: '#D6F5EC',
     displayOrder: 3,
-  },
-  {
-    id: 'tip',
-    label: '팁/그 외',
-    iconKey: 'lightbulb',
-    color: '#CDB4DB',
-    displayOrder: 4,
   },
 ];
 
+/**
+ * CSV의 카테고리 텍스트(레이블 또는 slug)를 4종 신규 slug로 매핑.
+ * 구 데이터의 emotion/감정/사회성·감정 → social, cognition → cognitive로 흡수.
+ * "tip" / "그 외" 텍스트는 null 반환 → 호출부에서 row skip.
+ */
 function mapCategory(raw?: string): string | null {
   if (!raw) return null;
   const t = raw.replace(/[#/\s]/g, '').toLowerCase();
-  if (/사회|감정|emotion/.test(t)) return 'emotion';
+  if (/사회|감정|emotion|social/.test(t)) return 'social';
   if (/언어|소통|language/.test(t)) return 'language';
-  if (/인지|cognition/.test(t)) return 'cognition';
+  if (/인지|학습|사고|cognition|cognitive/.test(t)) return 'cognitive';
   if (/신체|움직임|physical/.test(t)) return 'physical';
   return null;
 }
@@ -186,13 +189,13 @@ async function seedGrowthStages() {
 async function importMilestones() {
   const rows = readCsv('[youth] 워킹맘 MVP 데이터 가공 - 마일스톤 데이터.csv');
   // 헤더는 index 2. 컬럼:
-  //   0:아이 나이(그룹 라벨)  1:월별  2:사회성·감정  3:언어·소통  4:인지  5:움직임·신체  6:그 외(Tip)  7:자료 출처
+  //   0:아이 나이(그룹 라벨)  1:월별  2:사회성  3:언어  4:인지  5:신체  6:(deprecated tip — 무시)  7:자료 출처
+  // 구 시드의 "그 외 (Tip)" 컬럼은 CDC 4영역 체계로 전환하며 폐기 (기획 문서 §3.1 결정).
   const CAT_COLS = [
-    { idx: 2, slug: 'emotion' },
+    { idx: 2, slug: 'social' },
     { idx: 3, slug: 'language' },
-    { idx: 4, slug: 'cognition' },
+    { idx: 4, slug: 'cognitive' },
     { idx: 5, slug: 'physical' },
-    { idx: 6, slug: 'tip' },
   ];
 
   // 1단계: CSV에서 모든 마일스톤 추출
