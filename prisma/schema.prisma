@@ -26,7 +26,7 @@ model User {
   // 설정 v1(docs/features/20260519-settings.md): NotificationPreference 모델로 종류별 관리 시작. 본 두 필드는 deprecated 예정 — onboarding 호환 위해 임시 보존.
   notificationSlot NotificationSlot?
   notificationTime String? // "HH:MM" — custom일 때 필수, preset일 때 선택(미지정 시 시간대 디폴트)
-  interests        InterestId[] @default([]) // 설정/온보딩 — 최대 3개(app-level 검증)
+  interests        InterestId[]      @default([]) // 설정/온보딩 — 최대 3개(app-level 검증)
   onboardedAt      DateTime? // 온보딩 완료 시각 (null = 미완료)
   parentingStyleId String? // future — see docs/schema/10-parenting-style.md
   // 계정 탈퇴 (docs/features/20260519-settings.md §3.1): soft delete + 30일 grace + cron hard delete
@@ -62,8 +62,8 @@ enum InterestId {
 // 알림 종류별 enabled + time. (docs/features/20260519-settings.md §3.1, Figma 2395:9126)
 // v1: 10분 놀이 / 주간 리포트 2종 고정. 추가 시 NotificationType enum append.
 model NotificationPreference {
-  id        String           @id @default(uuid()) @db.Uuid
-  userId    String           @db.Uuid
+  id        String                     @id @default(uuid()) @db.Uuid
+  userId    String                     @db.Uuid
   type      NotificationPreferenceType
   enabled   Boolean                    @default(true)
   time      String // "HH:MM" 24h
@@ -298,7 +298,7 @@ enum MentalCareStatus {
 // ============================================================
 
 model MilestoneCategory {
-  id           String @id // slug: emotion, education, sleep, food, health, play
+  id           String @id // slug: social, language, cognitive, physical (CDC Act Early 발달 영역 4종 — docs/features/20260523-roadmap.md)
   label        String
   iconKey      String
   color        String
@@ -425,20 +425,20 @@ model MissionTag {
 }
 
 model MissionExecution {
-  id                    String                 @id @default(uuid()) @db.Uuid
-  userId                String                 @db.Uuid
-  childId               String                 @db.Uuid
-  missionId             String                 @db.Uuid
-  status                MissionExecutionStatus
-  startedAt             DateTime               @default(now())
+  id                     String                 @id @default(uuid()) @db.Uuid
+  userId                 String                 @db.Uuid
+  childId                String                 @db.Uuid
+  missionId              String                 @db.Uuid
+  status                 MissionExecutionStatus
+  startedAt              DateTime               @default(now())
   activeSegmentStartedAt DateTime?
-  pausedAt              DateTime?
-  elapsedSeconds        Int                    @default(0)
-  completedAt           DateTime?
-  actualDurationSeconds Int?
-  wasEarlyCompleted     Boolean                @default(false)
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  pausedAt               DateTime?
+  elapsedSeconds         Int                    @default(0)
+  completedAt            DateTime?
+  actualDurationSeconds  Int?
+  wasEarlyCompleted      Boolean                @default(false)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
 
   user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   child    Child            @relation(fields: [childId], references: [id], onDelete: Cascade)
