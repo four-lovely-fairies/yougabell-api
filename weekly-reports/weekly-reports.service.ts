@@ -2,8 +2,17 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { generateText, Output } from 'ai';
+import { AiConfigService } from '../ai/ai-config.service';
+import {
+  WEEKLY_REPORT_SYSTEM_PROMPT,
+  WeeklyReportAiSchema,
+  buildWeeklyReportPrompt,
+  type WeeklyReportAiPayload,
+} from '../ai/prompts/weekly-report';
 import { getAgeLabel } from '../home/home-date.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -11,6 +20,12 @@ import {
   WeeklyReportCurrentResponse,
   WeeklyReportDetail,
 } from './weekly-reports.types';
+
+type AiGenerationResult = {
+  payload: WeeklyReportAiPayload;
+  promptTokens: number | null;
+  completionTokens: number | null;
+};
 
 const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const WEEKDAY_LABELS: Record<
@@ -34,6 +49,7 @@ export type WeeklyReportsPrisma = {
         userId: string;
         name: string;
         birthDate: Date;
+        gender: string;
         displayOrder: number;
         createdAt: Date;
       }>
@@ -89,8 +105,11 @@ type WeeklyReportRecord = {
 
 @Injectable()
 export class WeeklyReportsService {
+  private readonly logger = new Logger(WeeklyReportsService.name);
+
   constructor(
     @Inject(PrismaService) private readonly prisma: WeeklyReportsPrisma,
+    private readonly aiConfig: AiConfigService,
   ) {}
 
   async getCurrent(
@@ -244,6 +263,12 @@ export class WeeklyReportsService {
         });
       }
 
+      const ai = await this.generateAiSection({
+        child,
+        executions,
+        mentalBatteryChecks,
+      });
+
       const created = (await this.prisma.weeklyReport.create({
         data: buildWeeklyReportCreateData({
           userId: child.userId,
@@ -252,6 +277,7 @@ export class WeeklyReportsService {
           weekEnd,
           executions,
           mentalBatteryChecks,
+          ai,
         }),
       })) as { id?: string } | undefined;
 
@@ -279,6 +305,84 @@ export class WeeklyReportsService {
       generated,
       skipped,
     };
+  }
+
+  /**
+   * 기획 docs/features/20260525-ai-integration.md §3.2 Phase 3 AI 필드 3개.
+   * - GOOGLE_GENERATIVE_AI_API_KEY 미설정 → null 반환 (fallback 텍스트 사용)
+   * - 실패 시 warn 로그 + null 반환 (row는 항상 생성)
+   */
+  private async generateAiSection(args: {
+    child: { name: string; birthDate: Date; gender: string };
+    executions: MissionExecutionForReport[];
+    mentalBatteryChecks: Array<{ level: number }>;
+  }): Promise<AiGenerationResult | null> {
+    if (!this.aiConfig.isEnabled) return null;
+
+    const totalMissionDurationSeconds = args.executions.reduce(
+      (sum, e) =>
+        sum + (e.actualDurationSeconds ?? e.mission.durationMinutes * 60),
+      0,
+    );
+    const feedbacks = args.executions
+      .map((e) => e.feedback)
+      .filter((f): f is NonNullable<typeof f> => Boolean(f));
+    const positives = feedbacks.filter((f) => f.childReaction >= 4);
+    const childPositiveReactionRate =
+      feedbacks.length === 0 ? 0 : positives.length / feedbacks.length;
+    const psychologicalEnergy = calculatePsychologicalEnergy({
+      mentalBatteryChecks: args.mentalBatteryChecks,
+      feedbacks,
+    });
+    const topKeywords = buildKeywordRows(args.executions).map(
+      (row) => row.keyword,
+    );
+    const bestMomentSeeds = buildBestMomentRows(args.executions).map((row) => {
+      const matched = args.executions.find(
+        (e) => e.mission.title === row.title,
+      );
+      return {
+        order: row.order,
+        title: row.title,
+        label: row.label,
+        childReaction: matched?.feedback?.childReaction ?? null,
+        childKeywords:
+          matched?.feedback?.keywords.map((keyword) => keyword.keyword) ?? [],
+      };
+    });
+
+    const ageMonths = monthsBetween(args.child.birthDate, new Date());
+
+    try {
+      const result = await generateText({
+        model: this.aiConfig.reportModel(),
+        system: WEEKLY_REPORT_SYSTEM_PROMPT,
+        prompt: buildWeeklyReportPrompt({
+          child: {
+            name: args.child.name,
+            ageMonths,
+            gender: args.child.gender,
+          },
+          totalMissionDurationSeconds,
+          childPositiveReactionRate,
+          psychologicalEnergy,
+          topKeywords,
+          bestMomentSeeds,
+        }),
+        experimental_output: Output.object({ schema: WeeklyReportAiSchema }),
+      });
+
+      return {
+        payload: result.experimental_output,
+        promptTokens: result.usage?.inputTokens ?? null,
+        completionTokens: result.usage?.outputTokens ?? null,
+      };
+    } catch (err) {
+      this.logger.warn(
+        `weekly report AI failed: ${(err as Error).message} — fallback 사용`,
+      );
+      return null;
+    }
   }
 
   private async getEmptyState(
@@ -365,6 +469,7 @@ function buildWeeklyReportCreateData({
   weekEnd,
   executions,
   mentalBatteryChecks,
+  ai,
 }: {
   userId: string;
   childId: string;
@@ -372,6 +477,7 @@ function buildWeeklyReportCreateData({
   weekEnd: Date;
   executions: MissionExecutionForReport[];
   mentalBatteryChecks: Array<{ level: number }>;
+  ai: AiGenerationResult | null;
 }) {
   const totalMissionDurationSeconds = executions.reduce(
     (sum, execution) =>
@@ -395,6 +501,15 @@ function buildWeeklyReportCreateData({
     feedbacks,
   });
 
+  const baseBestMoments = buildBestMomentRows(executions);
+  const aiBestMomentByOrder = new Map(
+    (ai?.payload.bestMomentBodies ?? []).map((m) => [m.order, m.body]),
+  );
+  const mergedBestMoments = baseBestMoments.map((row) => ({
+    ...row,
+    body: aiBestMomentByOrder.get(row.order) ?? row.body,
+  }));
+
   return {
     userId,
     childId,
@@ -402,17 +517,28 @@ function buildWeeklyReportCreateData({
     weekEnd,
     headline: '이번 주도 아이와의 시간을 잘 쌓아가고 있어요.',
     headlineBody:
+      ai?.payload.headlineBody ??
       '짧은 시간이라도 꾸준히 함께한 기록은 아이에게 안정감을 줍니다.',
     totalMissionDurationSeconds,
     childPositiveReactionRate,
     psychologicalEnergy,
     aiActionSuggestion:
+      ai?.payload.aiActionSuggestion ??
       '다음 미션 후 피드백에 아이가 자주 말한 단어나 기억에 남는 반응을 남겨보세요.',
+    aiGeneratedAt: ai ? new Date() : null,
+    aiPromptTokens: ai?.promptTokens ?? null,
+    aiCompletionTokens: ai?.completionTokens ?? null,
     generatedAt: new Date(),
     days: { create: buildDayRows(executions) },
     topKeywords: { create: buildKeywordRows(executions) },
-    bestMoments: { create: buildBestMomentRows(executions) },
+    bestMoments: { create: mergedBestMoments },
   };
+}
+
+function monthsBetween(birthDate: Date, today: Date): number {
+  const years = today.getFullYear() - birthDate.getFullYear();
+  const months = today.getMonth() - birthDate.getMonth();
+  return Math.max(0, years * 12 + months);
 }
 
 function buildDayRows(executions: MissionExecutionForReport[]) {
