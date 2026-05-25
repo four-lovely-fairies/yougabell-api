@@ -5,14 +5,17 @@ import {
   Get,
   HttpCode,
   Post,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiNoContentResponse,
   ApiOkResponse,
+  ApiProduces,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { CurrentUserId } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChatService } from './chat.service';
@@ -43,6 +46,44 @@ export class ChatController {
     @Body() body: SendChatMessageRequestDto,
   ): Promise<SendChatMessageResponse> {
     return this.service.sendMessage(userId, body.content);
+  }
+
+  /**
+   * SSE 스트리밍 엔드포인트 — Phase 2.
+   * Content-Type: text/event-stream
+   * 이벤트: token / done / error  (기획 §4.1)
+   *
+   * 표준 EventSource는 GET만 지원하므로 web은 fetch + ReadableStream 파싱 사용.
+   */
+  @Post('messages/stream')
+  @ApiProduces('text/event-stream')
+  async stream(
+    @CurrentUserId() userId: string,
+    @Body() body: SendChatMessageRequestDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Render/nginx 프록시 버퍼 해제
+    res.flushHeaders?.();
+
+    try {
+      for await (const event of this.service.streamMessage(
+        userId,
+        body.content,
+      )) {
+        res.write(`event: ${event.type}\n`);
+        res.write(`data: ${JSON.stringify(event.data)}\n\n`);
+      }
+    } catch {
+      res.write('event: error\n');
+      res.write(
+        `data: ${JSON.stringify({ message: '응답 스트림이 끊겼어요. 다시 시도해 주세요.' })}\n\n`,
+      );
+    } finally {
+      res.end();
+    }
   }
 
   @Delete()

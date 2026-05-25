@@ -43,3 +43,16 @@ export type SendChatMessageResponse = {
 };
 
 export const CHAT_RECENT_MESSAGES_LIMIT = 50;
+
+export type ChatStreamEvent =
+  | { type: 'token'; data: { text: string } }
+  | {
+      type: 'done';
+      data: {
+        messageId: string;
+        content: string;
+        cards: ChatMessageCard[];
+        sources: ChatMessageSource[];
+      };
+    }
+  | { type: 'error'; data: { message: string } };
