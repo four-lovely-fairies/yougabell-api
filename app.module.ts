@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AdminModule } from './admin/admin.module';
+import { AiModule } from './ai/ai.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -23,6 +24,7 @@ import { WeeklyReportsModule } from './weekly-reports/weekly-reports.module';
   imports: [
     PrismaModule,
     AuthModule,
+    AiModule,
     OnboardingModule,
     UsersModule,
     AdminModule,
