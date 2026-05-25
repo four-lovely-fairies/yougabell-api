@@ -89,11 +89,3 @@ export class ChatResponseDto {
   @ApiProperty({ type: [ChatMessageDto] })
   messages!: ChatMessageDto[];
 }
-
-export class SendChatMessageResponseDto {
-  @ApiProperty({ type: ChatMessageDto })
-  userMessage!: ChatMessageDto;
-
-  @ApiProperty({ type: ChatMessageDto })
-  assistantMessage!: ChatMessageDto;
-}
