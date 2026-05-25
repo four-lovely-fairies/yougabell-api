@@ -4,6 +4,7 @@ import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { ChatModule } from './chat/chat.module';
 import { OnboardingCompleteGuard } from './auth/onboarding-complete.guard';
 import { ChildrenModule } from './children/children.module';
 import { GrowthStagesModule } from './growth-stages/growth-stages.module';
@@ -34,6 +35,7 @@ import { WeeklyReportsModule } from './weekly-reports/weekly-reports.module';
     GrowthStagesModule,
     MissionsModule,
     RoadmapModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
