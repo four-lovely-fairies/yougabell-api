@@ -570,19 +570,25 @@ model SourceLink {
 // ============================================================
 
 model WeeklyReport {
-  id                          String   @id @default(uuid()) @db.Uuid
-  userId                      String   @db.Uuid
-  childId                     String   @db.Uuid
-  weekStart                   DateTime @db.Date // Monday
-  weekEnd                     DateTime @db.Date // Sunday
+  id                          String    @id @default(uuid()) @db.Uuid
+  userId                      String    @db.Uuid
+  childId                     String    @db.Uuid
+  weekStart                   DateTime  @db.Date // Monday
+  weekEnd                     DateTime  @db.Date // Sunday
   headline                    String
   headlineBody                String?
-  totalMissionDurationSeconds Int      @default(0)
+  totalMissionDurationSeconds Int       @default(0)
   childPositiveReactionRate   Float // 0..1
   psychologicalEnergy         Int // 0..100
   aiActionSuggestion          String
+  // AI 통합 메타 (docs/features/20260525-ai-integration.md §3.2 Phase 3)
+  // - aiGeneratedAt: LLM 호출 성공 시각. null = fallback 텍스트 사용
+  // - aiPromptTokens/aiCompletionTokens: 비용 추적용 (AI SDK usage 값 그대로)
+  aiGeneratedAt               DateTime?
+  aiPromptTokens              Int?
+  aiCompletionTokens          Int?
   generatedAt                 DateTime
-  createdAt                   DateTime @default(now())
+  createdAt                   DateTime  @default(now())
 
   user            User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
   child           Child                        @relation(fields: [childId], references: [id], onDelete: Cascade)

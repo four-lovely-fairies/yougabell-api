@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { AiConfigService } from '../ai/ai-config.service';
 import {
   WeeklyReportsPrisma,
   WeeklyReportsService,
 } from './weekly-reports.service';
+
+// AI 미설정 상태 stub — 모든 spec은 fallback 텍스트로 동작 (LLM 호출 X)
+const aiDisabled = {
+  isEnabled: false,
+} as unknown as AiConfigService;
 
 void describe('WeeklyReportsService', () => {
   void it('returns the current weekly report for the default active child', async () => {
@@ -14,6 +20,7 @@ void describe('WeeklyReportsService', () => {
           userId: 'user-1',
           name: '김유스',
           birthDate: new Date('2023-04-20T00:00:00+09:00'),
+          gender: 'female',
           displayOrder: 0,
           createdAt: new Date('2026-05-01T00:00:00+09:00'),
         },
@@ -56,7 +63,7 @@ void describe('WeeklyReportsService', () => {
         improvementTips: [],
       },
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     const result = await service.getCurrent('user-1', {
       today: new Date('2026-05-13T12:00:00+09:00'),
@@ -100,6 +107,7 @@ void describe('WeeklyReportsService', () => {
           userId: 'user-1',
           name: '김유스',
           birthDate: new Date('2023-04-20T00:00:00+09:00'),
+          gender: 'female',
           displayOrder: 0,
           createdAt: new Date('2026-05-01T00:00:00+09:00'),
         },
@@ -107,7 +115,7 @@ void describe('WeeklyReportsService', () => {
       report: null,
       completedMissionCount: 0,
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     const result = await service.getCurrent('user-1', {
       today: new Date('2026-05-13T12:00:00+09:00'),
@@ -126,6 +134,7 @@ void describe('WeeklyReportsService', () => {
           userId: 'user-1',
           name: '김유스',
           birthDate: new Date('2023-04-20T00:00:00+09:00'),
+          gender: 'female',
           displayOrder: 0,
           createdAt: new Date('2026-05-01T00:00:00+09:00'),
         },
@@ -133,7 +142,7 @@ void describe('WeeklyReportsService', () => {
       report: null,
       completedMissionCounts: [1, 1],
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     const result = await service.getCurrent('user-1', {
       today: new Date('2026-05-11T00:03:00+09:00'),
@@ -152,6 +161,7 @@ void describe('WeeklyReportsService', () => {
           userId: 'user-1',
           name: '김유스',
           birthDate: new Date('2023-04-20T00:00:00+09:00'),
+          gender: 'female',
           displayOrder: 0,
           createdAt: new Date('2026-05-01T00:00:00+09:00'),
         },
@@ -172,7 +182,7 @@ void describe('WeeklyReportsService', () => {
         bestMoments: [],
       },
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     const result = await service.getCurrent('user-1', {
       today: new Date('2026-05-13T12:00:00+09:00'),
@@ -191,7 +201,7 @@ void describe('WeeklyReportsService', () => {
       children: [],
       report: null,
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     await assert.rejects(() => service.getById('user-1', 'report-1'), {
       response: {
@@ -210,6 +220,7 @@ void describe('WeeklyReportsService', () => {
           userId: 'user-1',
           name: '김유스',
           birthDate: new Date('2023-04-20T00:00:00+09:00'),
+          gender: 'female',
           displayOrder: 0,
           createdAt: new Date('2026-05-01T00:00:00+09:00'),
         },
@@ -238,7 +249,7 @@ void describe('WeeklyReportsService', () => {
       ],
       onCreateReport: (args) => createCalls.push(args),
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     const result = await service.generateForWeek({
       weekStart: '2026-05-04',
@@ -270,7 +281,7 @@ void describe('WeeklyReportsService', () => {
       executions: [],
       onCreateReport: (args) => createCalls.push(args),
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     const result = await service.generateForWeek({
       weekStart: '2026-05-04',
@@ -308,7 +319,7 @@ void describe('WeeklyReportsService', () => {
       ],
       onCreateReport: (args) => createCalls.push(args),
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     const result = await service.generateForWeek({
       weekStart: '2026-05-04',
@@ -348,7 +359,7 @@ void describe('WeeklyReportsService', () => {
       mentalBatteryChecks: [{ level: 2 }, { level: 5 }],
       onCreateReport: (args) => createCalls.push(args),
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     await service.generateForWeek({
       weekStart: '2026-05-04',
@@ -428,7 +439,7 @@ void describe('WeeklyReportsService', () => {
       ],
       onCreateReport: (args) => createCalls.push(args),
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     await service.generateForWeek({ weekStart: '2026-05-04' });
 
@@ -480,7 +491,7 @@ void describe('WeeklyReportsService', () => {
       ],
       onCreateReport: (args) => createCalls.push(args),
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     const result = await service.generateForWeek({
       weekStart: '2026-05-04',
@@ -516,7 +527,7 @@ void describe('WeeklyReportsService', () => {
       onCreateReport: (args) => createCalls.push(args),
       onCreateNotification: (args) => notificationCalls.push(args),
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     const result = await service.generateForWeek({
       weekStart: '2026-05-04',
@@ -576,7 +587,7 @@ void describe('WeeklyReportsService', () => {
       ],
       onCreateReport: (args) => createCalls.push(args),
     });
-    const service = new WeeklyReportsService(prisma);
+    const service = new WeeklyReportsService(prisma, aiDisabled);
 
     await service.generateForWeek({ weekStart: '2026-05-04' });
 
@@ -598,6 +609,7 @@ function createChild() {
     userId: 'user-1',
     name: '김유스',
     birthDate: new Date('2023-04-20T00:00:00+09:00'),
+    gender: 'female',
     displayOrder: 0,
     createdAt: new Date('2026-05-01T00:00:00+09:00'),
   };
