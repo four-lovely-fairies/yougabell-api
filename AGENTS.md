@@ -82,4 +82,13 @@ pnpm prisma:studio          # Prisma Studio (DB 시각화)
 
 ## 호스팅
 
-TBD — Fly.io 도쿄 리전 후보.
+**Render Web Service** — https://yougabell-api.onrender.com
+
+- 플랜: Free / Starter Web Service
+- 배포: GitHub `main` push 시 자동 빌드·롤아웃 (Render → GitHub App 연동)
+- 환경 변수: Render 대시보드에서 관리 (`DATABASE_URL`/`DIRECT_URL`/`SUPABASE_URL`/`SUPABASE_JWKS_URL` 등 — `.env.example` 참조)
+- 빌드 명령: `pnpm install && pnpm prisma:generate && pnpm build`
+- 시작 명령: `pnpm start:prod` (= `node dist/main`)
+
+> 마이그레이션은 자동 실행되지 않음 — `prisma migrate deploy`는 별도 수동 (혹은 향후 CI step에서) 처리.
+> Free 플랜은 idle 시 sleep — 첫 호출 cold start 30초 안팎. dev 검증 용도로 충분, 운영 부하 늘면 유료 플랜 검토.
