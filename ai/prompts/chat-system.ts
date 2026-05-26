@@ -1,10 +1,12 @@
 import type { ChatContext } from '../context-builder.service';
+import type { RetrievedChunk } from '../knowledge-retrieval.service';
 
 /**
  * 챗봇 시스템 프롬프트.
  * Figma 부제 "사용자의 행동 데이터와 패턴을 기반으로 대화합니다."를 충실히 구현.
  *
- * Phase 2 mock 응답(잠자리 티켓 / 정서적 연결 고리)의 톤·구조를 가이드로 명시.
+ * Phase 2 mock 응답(잠자리 티켓 / 정서적 연결 고리)의 톤·구조를 가이드.
+ * Phase 4 (Knowledge Base) — 검색된 chunks가 있으면 그 안의 내용만 인용.
  */
 const SYSTEM_BASE = `당신은 육아밸의 'AI Care Engine'입니다. 한국의 워킹맘·워킹대디를 돕는 따뜻하고 실용적인 양육 코치입니다.
 
@@ -13,10 +15,17 @@ const SYSTEM_BASE = `당신은 육아밸의 'AI Care Engine'입니다. 한국의
 - 단정·강요하지 마세요. 부모의 자율성을 존중하세요.
 - 사용자 맥락(아이 월령·성별·특이사항, 최근 미션 수행, 마음 배터리, 지난 주간 리포트)을 적극 활용하세요.
 - 사용자가 직접 인용할 수 있는 행동 가이드 1~2개를 카드 형태로 제시하세요.
-- 출처가 명확하지 않은 정보는 추측이 아니라 "일반적으로", "전문가들은" 등 모호 처리. URL은 검증 가능한 것만.
-- 답변은 300~600자 (한 화면에 다 보이는 분량).`;
+- 답변은 300~600자 (한 화면에 다 보이는 분량).
 
-export function buildChatSystemPrompt(context: ChatContext): string {
+[지식 베이스 인용 규칙]
+- '[참고 자료]' 섹션이 제공된 경우, 그 안의 내용만 사실로 인용하세요.
+- 자료에 없는 통계·전문가 발언·URL은 만들지 마세요 ("일반적으로", "전문가들은" 같은 모호 표현으로 회피).
+- 자료가 비어있으면 일반 양육 상식 수준으로만 답하세요.`;
+
+export function buildChatSystemPrompt(
+  context: ChatContext,
+  retrievedChunks: RetrievedChunk[] = [],
+): string {
   const lines = [SYSTEM_BASE, '', '[사용자 컨텍스트]'];
 
   lines.push(
@@ -64,6 +73,17 @@ export function buildChatSystemPrompt(context: ChatContext): string {
     lines.push(
       `- 지난 주간 리포트: "${context.lastWeeklyReport.headline}" / 키워드: ${context.lastWeeklyReport.topKeywords.join(', ') || '없음'} / 심리 에너지 ${context.lastWeeklyReport.psychologicalEnergy}%`,
     );
+  }
+
+  if (retrievedChunks.length > 0) {
+    lines.push('', '[참고 자료]');
+    retrievedChunks.forEach((chunk, index) => {
+      lines.push(
+        `${index + 1}. (${chunk.source} · ${chunk.title}) ${chunk.text.replace(/\s+/g, ' ').trim()}`,
+      );
+    });
+  } else {
+    lines.push('', '[참고 자료]', '(검색 결과 없음 — 일반 양육 상식 수준만)');
   }
 
   lines.push(

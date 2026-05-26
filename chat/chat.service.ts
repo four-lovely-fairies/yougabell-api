@@ -4,6 +4,10 @@ import { generateText, Output, streamText, type ModelMessage } from 'ai';
 import { AiConfigService } from '../ai/ai-config.service';
 import { ContextBuilderService } from '../ai/context-builder.service';
 import {
+  KnowledgeRetrievalService,
+  type RetrievedChunk,
+} from '../ai/knowledge-retrieval.service';
+import {
   CHAT_CARDS_SYSTEM_PROMPT,
   ChatCardsSchema,
   type ChatCardsPayload,
@@ -32,6 +36,7 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly aiConfig: AiConfigService,
     private readonly contextBuilder: ContextBuilderService,
+    private readonly knowledge: KnowledgeRetrievalService,
   ) {}
 
   /**
@@ -161,16 +166,18 @@ export class ChatService {
     userId: string,
     content: string,
   ): AsyncGenerator<ChatStreamEvent> {
-    const [context, history] = await Promise.all([
+    const [context, history, retrievedChunks] = await Promise.all([
       this.contextBuilder.forChat(userId),
       this.getRecentHistoryForPrompt(sessionId),
+      // Phase 4 RAG — 질문 임베딩 → pgvector top-5 chunk. 실패 시 빈 배열.
+      this.knowledge.retrieve(content, 5),
     ]);
 
     const messages: ModelMessage[] = [...history, { role: 'user', content }];
 
     const result = streamText({
       model: this.aiConfig.chatModel(),
-      system: buildChatSystemPrompt(context),
+      system: buildChatSystemPrompt(context, retrievedChunks),
       messages,
     });
 
@@ -206,13 +213,22 @@ export class ChatService {
       this.logger.warn(`cards extraction failed: ${(err as Error).message}`);
     }
 
+    // 출처 링크는 LLM 생성 X → retrieve된 chunks의 sourceUrl만 노출 (환각 차단).
+    // LLM이 cards 추출 시 sources를 반환해도 무시.
+    const knowledgeSources = mergeKnowledgeSources(retrievedChunks);
+
     const assistant = await this.saveAssistant({
       sessionId,
       content: full,
       cards: cardsPayload.cards,
-      sources: cardsPayload.sources,
+      sources: knowledgeSources,
       tokensUsed: totalTokens || null,
     });
+
+    // Phase 4 감사 row — 어떤 chunk가 인용됐는지 (best-effort).
+    if (retrievedChunks.length > 0) {
+      void this.knowledge.recordRetrievals(assistant.id, retrievedChunks);
+    }
 
     yield {
       type: 'done',
@@ -306,6 +322,30 @@ export class ChatService {
       data: { userId },
     });
   }
+}
+
+/**
+ * 같은 KnowledgeDocument에서 여러 chunk를 가져온 경우 sourceUrl이 중복.
+ * URL 기준 dedupe + domain 추출 → SourceLink 형태로 변환.
+ */
+function mergeKnowledgeSources(
+  chunks: RetrievedChunk[],
+): Array<{ url: string; domain: string; title: string | null }> {
+  const out: Array<{ url: string; domain: string; title: string | null }> = [];
+  const seen = new Set<string>();
+  for (const chunk of chunks) {
+    if (!chunk.sourceUrl) continue;
+    if (seen.has(chunk.sourceUrl)) continue;
+    seen.add(chunk.sourceUrl);
+    let domain = '';
+    try {
+      domain = new URL(chunk.sourceUrl).hostname;
+    } catch {
+      domain = chunk.source;
+    }
+    out.push({ url: chunk.sourceUrl, domain, title: chunk.title });
+  }
+  return out;
 }
 
 function sumUsage(
