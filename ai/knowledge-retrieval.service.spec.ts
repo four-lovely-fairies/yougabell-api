@@ -65,6 +65,21 @@ void describe('KnowledgeRetrievalService.retrieve', () => {
     assert.equal(prisma._calls.queryRaw, 1);
   });
 
+  void it('accepts custom minSimilarity arg (forwarded to SQL filter)', async () => {
+    // raw SQL stub은 query를 그대로 실행 안 함 — 단순히 호출 여부 + custom k/minSim 인자가
+    // service가 정상 흐름 타는지만 검증. SQL WHERE 필터의 실제 동작은 production 검증 분리.
+    const prisma = createPrismaStub({ rawResult: [] });
+    const service = new KnowledgeRetrievalService(
+      prisma as unknown as PrismaService,
+      enabledEmbedding([0.1, 0.2]),
+    );
+
+    const result = await service.retrieve('잠자리', 3, 0.7);
+
+    assert.deepEqual(result, []);
+    assert.equal(prisma._calls.queryRaw, 1);
+  });
+
   void it('returns mapped chunks when embedding + pgvector succeed', async () => {
     const rows = [
       {
