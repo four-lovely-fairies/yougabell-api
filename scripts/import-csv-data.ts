@@ -306,6 +306,8 @@ async function importMissionsFile(
         description,
         durationMinutes: dur,
         effect,
+        // 1차 insert는 단일 시점 (min=max=ageMonths).
+        // 2차 post-process(postProcessMissionRanges)에서 카테고리별로 인접 시점 cover로 보정.
         recommendedAgeMonthsMin: ageMonths ?? undefined,
         recommendedAgeMonthsMax: ageMonths ?? undefined,
         goal: goal || undefined,
@@ -315,6 +317,50 @@ async function importMissionsFile(
     count++;
   }
   console.log(`✓ ${label}: ${count} missions imported (skipped: ${skipped})`);
+}
+
+/**
+ * Mission age range를 Milestone import와 동일한 패턴으로 보정.
+ * 카테고리별 distinct max 정렬 → 각 row의 min = 직전 체크포인트 (첫 행은 0).
+ *
+ * 예: physical 카테고리 max 목록 [2, 4, 6, 9, ...]
+ *   - max=2 → min=0  (0·1·2개월 cover)
+ *   - max=4 → min=2  (2·3·4)
+ *   - max=6 → min=4  (4·5·6)
+ *   ...
+ *
+ * 이로써 5·7·8·10·11·13·14개월 등 비-체크포인트 사용자도 미션 매칭됨.
+ */
+async function postProcessMissionRanges() {
+  const categories = await prisma.mission.findMany({
+    distinct: ['categoryId'],
+    select: { categoryId: true },
+  });
+  let updated = 0;
+  for (const { categoryId } of categories) {
+    const maxRows = await prisma.mission.findMany({
+      where: { categoryId, recommendedAgeMonthsMax: { not: null } },
+      distinct: ['recommendedAgeMonthsMax'],
+      select: { recommendedAgeMonthsMax: true },
+      orderBy: { recommendedAgeMonthsMax: 'asc' },
+    });
+    const maxes = maxRows
+      .map((row) => row.recommendedAgeMonthsMax)
+      .filter((value): value is number => value !== null);
+
+    for (let i = 0; i < maxes.length; i++) {
+      const max = maxes[i];
+      const min = i === 0 ? 0 : maxes[i - 1];
+      const result = await prisma.mission.updateMany({
+        where: { categoryId, recommendedAgeMonthsMax: max },
+        data: { recommendedAgeMonthsMin: min },
+      });
+      updated += result.count;
+    }
+  }
+  console.log(
+    `✓ mission age ranges post-processed: ${updated} rows across ${categories.length} categories`,
+  );
 }
 
 async function wipe() {
@@ -381,6 +427,10 @@ async function main() {
     },
     '김성훈',
   );
+
+  // 모든 mission file import 완료 후, 카테고리별 인접 시점 cover로 min 보정.
+  // 단일 시점만 cover하면 5·7·8개월 등 비-체크포인트 사용자에게 미션 0건 매칭됨.
+  await postProcessMissionRanges();
 
   console.log('===== done =====');
 }
