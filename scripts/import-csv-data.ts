@@ -172,7 +172,15 @@ async function seedCategories() {
       update: c,
     });
   }
-  console.log(`✓ categories upserted: ${CATEGORIES.length}`);
+  // CDC 4영역 외 orphan row(구 emotion/cognition/tip 등) 정리.
+  // Mission/Milestone는 wipe()로 이미 비웠으므로 FK 참조 없음.
+  const validIds = CATEGORIES.map((c) => c.id);
+  const orphans = await prisma.milestoneCategory.deleteMany({
+    where: { id: { notIn: validIds } },
+  });
+  console.log(
+    `✓ categories upserted: ${CATEGORIES.length} (orphan deleted: ${orphans.count})`,
+  );
 }
 
 async function seedGrowthStages() {
@@ -394,21 +402,40 @@ async function main() {
     '손서현',
   );
 
-  // 오유현 — 헤더 idx 6: 아이나이=0, 시간=1, 키워드=2, 미션=3, 효과=4, 태그=5, 출처=6, _=7, 목표=8
+  // 오유현 — 헤더 idx 6: 아이나이=0, 목표=1, 시간=2, 미션요약=3, 미션상세=4, 효과=5, 카테고리=6, 출처=7
+  // (v2 — 모든 컬럼이 1만큼 시프트됨. goalIdx가 1번 자리로 이동)
   await importMissionsFile(
     '[youth] 워킹맘 MVP 데이터 가공 - 오유현_미션데이터.csv',
     6,
     {
       ageIdx: 0,
-      durIdx: 1,
-      shortIdx: 2,
-      descIdx: 3,
-      effectIdx: 4,
-      tagIdx: 5,
-      srcIdx: 6,
-      goalIdx: 8,
+      goalIdx: 1,
+      durIdx: 2,
+      shortIdx: 3,
+      descIdx: 4,
+      effectIdx: 5,
+      tagIdx: 6,
+      srcIdx: 7,
     },
     '오유현',
+  );
+
+  // 통합 미션 데이터 — 신규 (v2). 헤더 idx 5: 동일 mapping (오유현 형식).
+  // 헤더: 아이나이=0, 목표=1, 시간=2, 미션요약=3, 미션상세=4, 효과=5, 카테고리=6, 출처=7
+  await importMissionsFile(
+    '[youth] 워킹맘 MVP 데이터 가공 - 미션 데이터.csv',
+    5,
+    {
+      ageIdx: 0,
+      goalIdx: 1,
+      durIdx: 2,
+      shortIdx: 3,
+      descIdx: 4,
+      effectIdx: 5,
+      tagIdx: 6,
+      srcIdx: 7,
+    },
+    '통합 미션',
   );
 
   // 김성훈 — 헤더 idx 7: 아이나이=0, 목표=1, 부모유형=2, 시간=3, 키워드=4, 미션=5, 효과=6, 태그=7, 출처=8
