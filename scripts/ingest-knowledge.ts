@@ -48,7 +48,8 @@ const KNOWLEDGE_DIR = path.resolve(
   'seed-data',
   'knowledge',
 );
-const EMBEDDING_MODEL = 'text-embedding-004';
+const EMBEDDING_MODEL = 'gemini-embedding-001';
+const EMBEDDING_DIMS = 768;
 const CHUNK_TARGET_TOKENS = 500;
 const CHUNK_OVERLAP_TOKENS = 100;
 const HANGUL_CHARS_PER_TOKEN = 1.3;
@@ -183,8 +184,14 @@ async function embedAll(texts: string[]): Promise<number[][]> {
   for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
     const batch = texts.slice(i, i + EMBED_BATCH_SIZE);
     const { embeddings } = await embedMany({
-      model: google.textEmbeddingModel(EMBEDDING_MODEL),
+      model: google.embedding(EMBEDDING_MODEL),
       values: batch,
+      providerOptions: {
+        google: {
+          outputDimensionality: EMBEDDING_DIMS,
+          taskType: 'RETRIEVAL_DOCUMENT',
+        },
+      },
     });
     out.push(...embeddings);
   }
