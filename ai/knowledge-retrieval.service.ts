@@ -21,7 +21,13 @@ export type RetrievedChunk = {
  *
  * cosine distance 연산자(<=>): 0=동일, 2=정반대.
  * similarity = 1 - distance → 1=동일, 0=무관.
+ *
+ * MIN_SIMILARITY: 양육 무관 질문(예: 갈비찜 레시피)에도 top-k chunks가 강제 매칭되어
+ * sourceLink에 misleading 출처가 노출되던 문제 차단 (Phase 5 검증 발견 이슈).
+ * dev 실측: HIT 0.650~0.818 / MISS 0.515~0.521 → 0.55 임계값으로 명확 분리.
  */
+const MIN_SIMILARITY = 0.55;
+
 @Injectable()
 export class KnowledgeRetrievalService {
   private readonly logger = new Logger(KnowledgeRetrievalService.name);
@@ -35,7 +41,11 @@ export class KnowledgeRetrievalService {
     return this.embedding.isEnabled;
   }
 
-  async retrieve(query: string, k = 5): Promise<RetrievedChunk[]> {
+  async retrieve(
+    query: string,
+    k = 5,
+    minSimilarity = MIN_SIMILARITY,
+  ): Promise<RetrievedChunk[]> {
     if (!this.embedding.isEnabled) return [];
 
     let queryVec: number[];
@@ -52,6 +62,7 @@ export class KnowledgeRetrievalService {
     // pgvector parameter는 '[1,2,...]' 문자열 + ::vector 캐스트.
     const vecStr = `[${queryVec.join(',')}]`;
     try {
+      // SQL 단계에서 임계값 필터 — pgvector 인덱스 활용 + 네트워크 전송량 감소.
       const rows = await this.prisma.$queryRaw<
         Array<{
           chunkId: string;
@@ -78,6 +89,7 @@ export class KnowledgeRetrievalService {
         FROM "KnowledgeChunk" c
         JOIN "KnowledgeDocument" d ON d.id = c."documentId"
         WHERE c.embedding IS NOT NULL
+          AND (1 - (c.embedding <=> ${vecStr}::vector)) >= ${minSimilarity}
         ORDER BY c.embedding <=> ${vecStr}::vector
         LIMIT ${k}
       `);
