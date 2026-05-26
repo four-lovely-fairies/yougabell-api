@@ -501,12 +501,15 @@ model ChatSession {
 }
 
 model ChatMessage {
-  id        String   @id @default(uuid()) @db.Uuid
-  sessionId String   @db.Uuid
-  role      ChatRole
-  content   String
-  sentAt    DateTime @default(now())
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid()) @db.Uuid
+  sessionId  String   @db.Uuid
+  role       ChatRole
+  content    String
+  // AI SDK result.usage.{inputTokens, outputTokens} 합산. 사용자 메시지엔 null.
+  // 카드 추출(generateText 2차 호출) 토큰은 별도로 합산 (비용 추적용).
+  tokensUsed Int?
+  sentAt     DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   session     ChatSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   cards       MessageCard[]

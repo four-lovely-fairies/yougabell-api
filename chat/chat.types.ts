@@ -37,11 +37,6 @@ export type ChatResponse = {
   messages: ChatMessage[];
 };
 
-export type SendChatMessageResponse = {
-  userMessage: ChatMessage;
-  assistantMessage: ChatMessage;
-};
-
 export const CHAT_RECENT_MESSAGES_LIMIT = 50;
 
 export type ChatStreamEvent =

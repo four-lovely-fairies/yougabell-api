@@ -20,11 +20,8 @@ import { CurrentUserId } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChatService } from './chat.service';
 import { SendChatMessageRequestDto } from './dto/chat-message-request.dto';
-import {
-  ChatResponseDto,
-  SendChatMessageResponseDto,
-} from './dto/chat-response.dto';
-import type { ChatResponse, SendChatMessageResponse } from './chat.types';
+import { ChatResponseDto } from './dto/chat-response.dto';
+import type { ChatResponse } from './chat.types';
 
 @ApiTags('me/chat')
 @ApiBearerAuth()
@@ -37,15 +34,6 @@ export class ChatController {
   @ApiOkResponse({ type: ChatResponseDto })
   get(@CurrentUserId() userId: string): Promise<ChatResponse> {
     return this.service.getChat(userId);
-  }
-
-  @Post('messages')
-  @ApiOkResponse({ type: SendChatMessageResponseDto })
-  send(
-    @CurrentUserId() userId: string,
-    @Body() body: SendChatMessageRequestDto,
-  ): Promise<SendChatMessageResponse> {
-    return this.service.sendMessage(userId, body.content);
   }
 
   /**

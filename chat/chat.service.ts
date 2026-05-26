@@ -16,7 +16,6 @@ import {
   type ChatMessage,
   type ChatResponse,
   type ChatStreamEvent,
-  type SendChatMessageResponse,
 } from './chat.types';
 
 const RECENT_HISTORY_FOR_PROMPT = 10;
@@ -65,52 +64,6 @@ export class ChatService {
       },
       // 최신 → 과거로 fetch 후 화면용으로 과거 → 최신 정렬
       messages: recent.reverse().map(toChatMessage),
-    };
-  }
-
-  /**
-   * Phase 1: 사용자 메시지 저장 + 고정 mock 응답 저장.
-   * Phase 2에서 Gemini streamText로 교체.
-   */
-  async sendMessage(
-    userId: string,
-    content: string,
-  ): Promise<SendChatMessageResponse> {
-    const session = await this.getOrCreateSession(userId);
-
-    const userMessage = await this.prisma.chatMessage.create({
-      data: {
-        sessionId: session.id,
-        role: ChatRole.user,
-        content,
-      },
-      include: { cards: true, sourceLinks: true },
-    });
-
-    const assistantMessage = await this.prisma.chatMessage.create({
-      data: {
-        sessionId: session.id,
-        role: ChatRole.assistant,
-        content: MOCK_ASSISTANT_REPLY.content,
-        cards: {
-          create: MOCK_ASSISTANT_REPLY.cards.map((card, index) => ({
-            order: index,
-            title: card.title,
-            body: card.body,
-          })),
-        },
-      },
-      include: { cards: true, sourceLinks: true },
-    });
-
-    await this.prisma.chatSession.update({
-      where: { id: session.id },
-      data: { updatedAt: new Date() },
-    });
-
-    return {
-      userMessage: toChatMessage(userMessage),
-      assistantMessage: toChatMessage(assistantMessage),
     };
   }
 
@@ -227,6 +180,16 @@ export class ChatService {
       yield { type: 'token', data: { text: chunk } };
     }
 
+    // streamText 완료 후 usage 확인 (AI SDK v6: PromiseLike)
+    let streamUsage: { inputTokens?: number; outputTokens?: number } | null =
+      null;
+    try {
+      streamUsage = await result.usage;
+    } catch {
+      // usage 미노출 / 모델 미지원 — totalTokens는 null로 둔다.
+    }
+    let totalTokens = sumUsage(streamUsage);
+
     let cardsPayload: ChatCardsPayload = { cards: [], sources: [] };
     try {
       // AI SDK v6: generateText + Output.object 으로 구조화 출력.
@@ -237,6 +200,7 @@ export class ChatService {
         experimental_output: Output.object({ schema: ChatCardsSchema }),
       });
       cardsPayload = extraction.experimental_output;
+      totalTokens += sumUsage(extraction.usage);
     } catch (err) {
       // 카드 추출 실패해도 본문은 보낸다 — 사용자 경험 저하 최소화.
       this.logger.warn(`cards extraction failed: ${(err as Error).message}`);
@@ -247,6 +211,7 @@ export class ChatService {
       content: full,
       cards: cardsPayload.cards,
       sources: cardsPayload.sources,
+      tokensUsed: totalTokens || null,
     });
 
     yield {
@@ -280,12 +245,14 @@ export class ChatService {
     content: string;
     cards: Array<{ title: string; body: string }>;
     sources: Array<{ url: string; domain: string; title: string | null }>;
+    tokensUsed?: number | null;
   }): Promise<MessageWithRelations> {
     return this.prisma.chatMessage.create({
       data: {
         sessionId: input.sessionId,
         role: ChatRole.assistant,
         content: input.content,
+        tokensUsed: input.tokensUsed ?? null,
         cards: input.cards.length
           ? {
               create: input.cards.map((card, index) => ({
@@ -339,6 +306,13 @@ export class ChatService {
       data: { userId },
     });
   }
+}
+
+function sumUsage(
+  usage: { inputTokens?: number; outputTokens?: number } | null | undefined,
+): number {
+  if (!usage) return 0;
+  return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
 }
 
 function splitForStreaming(text: string): string[] {
