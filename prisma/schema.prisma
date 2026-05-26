@@ -511,10 +511,11 @@ model ChatMessage {
   sentAt     DateTime @default(now())
   createdAt  DateTime @default(now())
 
-  session     ChatSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session     ChatSession        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   cards       MessageCard[]
   sourceLinks SourceLink[]
   tags        ChatMessageTag[]
+  retrievals  MessageRetrieval[]
 
   @@index([sessionId, sentAt])
 }
@@ -565,6 +566,68 @@ model SourceLink {
 
   message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
+  @@index([messageId])
+}
+
+// ============================================================
+// Knowledge / RAG (docs/features/20260525-ai-integration.md §3.3, Phase 4)
+// pgvector extension 필요 — Supabase 대시보드에서 한 번 활성화:
+//   CREATE EXTENSION IF NOT EXISTS vector;
+// embedding 차원 768 = Gemini text-embedding-004 기본.
+// ============================================================
+
+model KnowledgeDocument {
+  id         String          @id @default(uuid()) @db.Uuid
+  source     KnowledgeSource
+  sourceUrl  String?
+  title      String
+  language   String          @default("ko") // ko / en
+  license    String // 예: "Public Domain (CDC)", "공공저작물 자유이용 (보건복지부)"
+  ingestedAt DateTime        @default(now())
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  chunks KnowledgeChunk[]
+
+  @@index([source])
+}
+
+enum KnowledgeSource {
+  cdc // CDC Act Early
+  mohw // 보건복지부 아이사랑
+  internal // 운영자 직접 입력
+}
+
+model KnowledgeChunk {
+  id         String                      @id @default(uuid()) @db.Uuid
+  documentId String                      @db.Uuid
+  chunkIndex Int
+  text       String
+  tokenCount Int?
+  // Gemini text-embedding-004: 768d. pgvector 컬럼은 Prisma 미지원 → Unsupported.
+  embedding  Unsupported("vector(768)")?
+  createdAt  DateTime                    @default(now())
+
+  document   KnowledgeDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  retrievals MessageRetrieval[]
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+}
+
+// 감사·튜닝용 — 어떤 chunk가 어떤 assistant 응답에 retrieve됐는지 + similarity score.
+model MessageRetrieval {
+  id         String   @id @default(uuid()) @db.Uuid
+  messageId  String   @db.Uuid // ChatMessage.id (assistant 메시지만)
+  chunkId    String   @db.Uuid
+  similarity Float // 0..1 (cosine)
+  rank       Int // 1..k
+  createdAt  DateTime @default(now())
+
+  message ChatMessage    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  chunk   KnowledgeChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, chunkId])
   @@index([messageId])
 }
 
