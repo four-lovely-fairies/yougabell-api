@@ -40,7 +40,8 @@ export class KnowledgeRetrievalService {
 
     let queryVec: number[];
     try {
-      queryVec = await this.embedding.embedOne(query);
+      // RETRIEVAL_QUERY taskType — query·document를 다른 공간에 매핑해 정확도 ↑
+      queryVec = await this.embedding.embedQuery(query);
     } catch (err) {
       this.logger.warn(
         `query embedding failed: ${(err as Error).message} — RAG 빈 결과로 진행`,
