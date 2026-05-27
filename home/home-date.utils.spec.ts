@@ -70,7 +70,11 @@ void describe('home date utilities', () => {
     );
     assert.equal(
       getAgeLabel(new Date('2023-04-20T00:00:00+09:00'), today),
-      '만3세',
+      '36개월',
+    );
+    assert.equal(
+      getAgeLabel(new Date('2025-05-12T00:00:00+09:00'), today),
+      '12개월',
     );
   });
 });

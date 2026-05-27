@@ -30,7 +30,7 @@ export class HomeChildDto {
   @ApiProperty({ example: '2023-04-20', description: 'ISO date YYYY-MM-DD' })
   birthDate!: string;
 
-  @ApiProperty({ example: '만3세' })
+  @ApiProperty({ example: '36개월' })
   ageLabel!: string;
 
   @ApiProperty({ example: 0 })
