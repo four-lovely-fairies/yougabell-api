@@ -84,8 +84,7 @@ export function getAgeMonths(birthDate: Date, today: Date): number {
 }
 
 export function getAgeLabel(birthDate: Date, today: Date): string {
-  const ageYears = Math.floor(getAgeMonths(birthDate, today) / 12);
-  return `만${ageYears}세`;
+  return `${getAgeMonths(birthDate, today)}개월`;
 }
 
 export function toDateOnly(date: Date): string {

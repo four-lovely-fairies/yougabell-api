@@ -15,7 +15,7 @@ export class WeeklyReportSelectedChildDto {
   @ApiProperty({ example: '김유스' })
   name!: string;
 
-  @ApiProperty({ example: '만3세' })
+  @ApiProperty({ example: '36개월' })
   ageLabel!: string;
 }
 
