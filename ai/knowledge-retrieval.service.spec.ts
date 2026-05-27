@@ -249,5 +249,5 @@ function createPrismaStub(input: {
     get _lastRetrievalCreateManyArg() {
       return lastArg;
     },
-  } as PrismaStubInstance;
+  };
 }

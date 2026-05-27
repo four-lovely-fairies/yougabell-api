@@ -712,7 +712,10 @@ export class MissionsService {
     childId: string,
     ageMonths: number,
     today: Date,
-  ): Promise<{ mission: CurrentMissionRow; status: CurrentMissionStatus } | null> {
+  ): Promise<{
+    mission: CurrentMissionRow;
+    status: CurrentMissionStatus;
+  } | null> {
     const todayKey = toSeoulDateKey(today);
     const todayStart = new Date(`${todayKey}T00:00:00+09:00`);
     const todayEnd = new Date(`${todayKey}T23:59:59.999+09:00`);

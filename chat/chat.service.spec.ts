@@ -42,17 +42,23 @@ type PrismaStub = {
     findFirst: (args: unknown) => Promise<SessionRow | null>;
     create: (args: { data: { userId: string } }) => Promise<SessionRow>;
     update: (args: unknown) => Promise<SessionRow>;
-    deleteMany: (args: { where: { userId: string } }) => Promise<{ count: number }>;
+    deleteMany: (args: {
+      where: { userId: string };
+    }) => Promise<{ count: number }>;
   };
   chatMessage: {
-    findMany: (args: { where: { sessionId: string } }) => Promise<ChatMessageRow[]>;
+    findMany: (args: {
+      where: { sessionId: string };
+    }) => Promise<ChatMessageRow[]>;
     create: (args: {
       data: {
         sessionId: string;
         role: 'user' | 'assistant';
         content: string;
         tokensUsed?: number | null;
-        cards?: { create: Array<{ order: number; title: string; body: string }> };
+        cards?: {
+          create: Array<{ order: number; title: string; body: string }>;
+        };
       };
       include?: unknown;
     }) => Promise<ChatMessageRow>;
@@ -93,8 +99,18 @@ void describe('ChatService.getChat', () => {
     };
     // findMany returns newest-first; service should reverse to oldest-first.
     const newestFirst: ChatMessageRow[] = [
-      makeMessage({ id: 'm-2', role: 'assistant', content: '답변', sentAt: new Date('2026-05-26T11:00:00Z') }),
-      makeMessage({ id: 'm-1', role: 'user', content: '질문', sentAt: new Date('2026-05-26T10:30:00Z') }),
+      makeMessage({
+        id: 'm-2',
+        role: 'assistant',
+        content: '답변',
+        sentAt: new Date('2026-05-26T11:00:00Z'),
+      }),
+      makeMessage({
+        id: 'm-1',
+        role: 'user',
+        content: '질문',
+        sentAt: new Date('2026-05-26T10:30:00Z'),
+      }),
     ];
     const prisma = createPrismaStub({ session, messages: newestFirst });
     const service = new ChatService(
@@ -126,7 +142,10 @@ void describe('ChatService.streamMessage (AI disabled fallback)', () => {
     );
 
     const events: Array<{ type: string; data: unknown }> = [];
-    for await (const event of service.streamMessage('user-1', '잠자리 도와주세요')) {
+    for await (const event of service.streamMessage(
+      'user-1',
+      '잠자리 도와주세요',
+    )) {
       events.push(event);
     }
 
@@ -139,7 +158,10 @@ void describe('ChatService.streamMessage (AI disabled fallback)', () => {
     // assistant has cards
     const assistantCreate = prisma._messageCreates[1];
     const cardsArg = assistantCreate.data.cards?.create ?? [];
-    assert.ok(cardsArg.length >= 1, 'assistant message should include mock cards');
+    assert.ok(
+      cardsArg.length >= 1,
+      'assistant message should include mock cards',
+    );
     // events: at least one token + one done
     const tokens = events.filter((e) => e.type === 'token');
     const dones = events.filter((e) => e.type === 'done');
@@ -171,7 +193,9 @@ void describe('ChatService.deleteChat', () => {
 
     await service.deleteChat('user-1');
 
-    assert.deepEqual(prisma._calls.sessionDeleteManyArgs, [{ userId: 'user-1' }]);
+    assert.deepEqual(prisma._calls.sessionDeleteManyArgs, [
+      { userId: 'user-1' },
+    ]);
   });
 });
 
@@ -270,5 +294,5 @@ function createPrismaStub(input: {
     },
     _calls: calls,
     _messageCreates: messageCreates,
-  } as PrismaStubInstance;
+  };
 }
