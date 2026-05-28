@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, Max, Min } from 'class-validator';
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 const MISSION_STATUSES = ['not_started', 'in_progress', 'completed'] as const;
@@ -43,6 +44,19 @@ export class HomeMoodDto {
 
   @ApiProperty({ example: '😊' })
   emoji!: string;
+}
+
+export class UpsertHomeMoodDto {
+  @ApiProperty({ enum: [1, 2, 3, 4, 5], example: 4 })
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  level!: 1 | 2 | 3 | 4 | 5;
+}
+
+export class HomeMoodCheckDto extends HomeMoodDto {
+  @ApiProperty({ format: 'date-time' })
+  checkedAt!: string;
 }
 
 export class HomeWeekDayDto {
