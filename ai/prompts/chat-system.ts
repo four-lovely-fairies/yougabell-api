@@ -5,7 +5,7 @@ import type { RetrievedChunk } from '../knowledge-retrieval.service';
  * 챗봇 시스템 프롬프트.
  * Figma 부제 "사용자의 행동 데이터와 패턴을 기반으로 대화합니다."를 충실히 구현.
  *
- * Phase 2 mock 응답(잠자리 티켓 / 정서적 연결 고리)의 톤·구조를 가이드.
+ * 챗봇 답변의 톤·구조를 가이드.
  * Phase 4 (Knowledge Base) — 검색된 chunks가 있으면 그 안의 내용만 인용.
  */
 const SYSTEM_BASE = `당신은 육아밸의 'AI Care Engine'입니다. 한국의 워킹맘·워킹대디를 돕는 따뜻하고 실용적인 양육 코치입니다.

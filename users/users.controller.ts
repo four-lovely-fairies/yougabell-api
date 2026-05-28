@@ -6,7 +6,6 @@ import {
   HttpCode,
   Param,
   Patch,
-  Post,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -106,19 +105,5 @@ export class UsersController {
     @Body() body: DeleteAccountDto,
   ): Promise<void> {
     return this.users.softDeleteAccount(userId, body);
-  }
-
-  @Post('reset-onboarding')
-  @HttpCode(204)
-  @SkipOnboardingCheck()
-  @ApiNoContentResponse()
-  @ApiOperation({
-    summary: '[임시] 온보딩 재진입을 위한 회원 정보 초기화',
-    description:
-      '개발/테스트 전용. User row를 삭제해 Child·NotificationPreference 등 cascade 정리. ' +
-      'Supabase 세션은 그대로이므로 클라이언트에서 signOut + /onboarding/intro 이동 필요.',
-  })
-  async resetOnboarding(@CurrentUserId() userId: string): Promise<void> {
-    return this.users.resetOnboarding(userId);
   }
 }
