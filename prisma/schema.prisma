@@ -648,7 +648,7 @@ model WeeklyReport {
   psychologicalEnergy         Int // 0..100
   aiActionSuggestion          String
   // AI 통합 메타 (docs/features/20260525-ai-integration.md §3.2 Phase 3)
-  // - aiGeneratedAt: LLM 호출 성공 시각. null = fallback 텍스트 사용
+  // - aiGeneratedAt: LLM 호출 성공 시각
   // - aiPromptTokens/aiCompletionTokens: 비용 추적용 (AI SDK usage 값 그대로)
   aiGeneratedAt               DateTime?
   aiPromptTokens              Int?

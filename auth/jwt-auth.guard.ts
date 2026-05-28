@@ -33,6 +33,7 @@ export class JwtAuthGuard implements CanActivate {
       req.user = {
         id: payload.sub,
         email: typeof payload.email === 'string' ? payload.email : undefined,
+        role: getAppMetadataRole(payload.app_metadata),
       } satisfies AuthenticatedUser;
       return true;
     } catch (error) {
@@ -40,6 +41,19 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid access token');
     }
   }
+}
+
+function getAppMetadataRole(appMetadata: unknown): string | undefined {
+  if (
+    typeof appMetadata === 'object' &&
+    appMetadata !== null &&
+    'role' in appMetadata
+  ) {
+    const role = appMetadata.role;
+    return typeof role === 'string' ? role : undefined;
+  }
+
+  return undefined;
 }
 
 function getBearerToken(req: Request): string {

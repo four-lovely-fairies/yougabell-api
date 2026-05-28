@@ -7,8 +7,16 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { AdminRoleGuard } from '../auth/admin-role.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SkipOnboardingCheck } from '../auth/skip-onboarding-check.decorator';
 import {
   CreateGrowthStageDto,
@@ -17,9 +25,10 @@ import {
 } from './dto/growth-stage.dto';
 import { GrowthStagesService } from './growth-stages.service';
 
-// TODO(auth): AdminGuard 도입 후 @UseGuards 복원. 현재는 dev only 무가드.
 @ApiTags('admin/growth-stages')
+@ApiBearerAuth()
 @Controller('admin/growth-stages')
+@UseGuards(JwtAuthGuard, AdminRoleGuard)
 @SkipOnboardingCheck()
 export class GrowthStagesController {
   constructor(private readonly service: GrowthStagesService) {}
