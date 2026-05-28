@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -7,9 +7,13 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUserId } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { HomeDashboardDto } from './dto/home-response.dto';
+import {
+  HomeDashboardDto,
+  HomeMoodCheckDto,
+  UpsertHomeMoodDto,
+} from './dto/home-response.dto';
 import { HomeService } from './home.service';
-import type { HomeDashboard } from './home.types';
+import type { HomeDashboard, HomeMoodCheck } from './home.types';
 
 @ApiTags('home')
 @ApiBearerAuth()
@@ -34,5 +38,14 @@ export class HomeController {
     @Query('date') date?: string,
   ): Promise<HomeDashboard> {
     return this.homeService.getHome(userId, { childId, date });
+  }
+
+  @Post('mood')
+  @ApiOkResponse({ type: HomeMoodCheckDto })
+  upsertTodayMood(
+    @CurrentUserId() userId: string,
+    @Body() body: UpsertHomeMoodDto,
+  ): Promise<HomeMoodCheck> {
+    return this.homeService.upsertTodayMood(userId, body.level);
   }
 }

@@ -13,6 +13,12 @@ export type HomeChild = {
   displayOrder: number;
 };
 
+export type HomeMoodCheck = {
+  level: 1 | 2 | 3 | 4 | 5;
+  emoji: string;
+  checkedAt: string;
+};
+
 export type HomeDashboard = {
   selectedChild: HomeChild;
   children: HomeChild[];

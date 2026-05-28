@@ -17,6 +17,7 @@ import {
 import {
   HomeChild,
   HomeDashboard,
+  HomeMoodCheck,
   HomeNotificationSummaryItem,
   toRecommendedMissionStatus,
 } from './home.types';
@@ -176,6 +177,49 @@ export class HomeService {
         unreadCount,
         latest: latestNotifications.map(toHomeNotification),
       },
+    };
+  }
+
+  async upsertTodayMood(
+    userId: string,
+    level: 1 | 2 | 3 | 4 | 5,
+  ): Promise<HomeMoodCheck> {
+    const now = new Date();
+    const todayKey = toSeoulDateKey(now);
+    const todayStart = new Date(`${todayKey}T00:00:00+09:00`);
+    const todayEnd = new Date(`${todayKey}T23:59:59.999+09:00`);
+
+    const existing = await this.prisma.mentalBatteryCheck.findFirst({
+      where: {
+        userId,
+        checkedAt: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
+      orderBy: { checkedAt: 'desc' },
+    });
+
+    const saved = existing
+      ? await this.prisma.mentalBatteryCheck.update({
+          where: { id: existing.id },
+          data: {
+            level,
+            checkedAt: now,
+          },
+        })
+      : await this.prisma.mentalBatteryCheck.create({
+          data: {
+            userId,
+            level,
+            checkedAt: now,
+          },
+        });
+
+    return {
+      level: saved.level as 1 | 2 | 3 | 4 | 5,
+      emoji: moodEmoji(saved.level),
+      checkedAt: saved.checkedAt.toISOString(),
     };
   }
 
