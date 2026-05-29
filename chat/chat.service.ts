@@ -179,6 +179,8 @@ export class ChatService {
       model: this.aiConfig.chatModel(),
       system: buildChatSystemPrompt(context, retrievedChunks),
       messages,
+      // 길이는 클라이언트 단락 분할로 처리 — 폭주 방지용 넉넉한 상한만.
+      maxOutputTokens: 600,
     });
 
     let full = '';
