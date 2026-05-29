@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { generateText, Output } from 'ai';
 import { AiConfigService } from '../ai/ai-config.service';
@@ -27,6 +28,8 @@ type AiGenerationResult = {
 };
 
 type GenerateTextFn = typeof generateText;
+
+export const WEEKLY_REPORT_GENERATE_TEXT = 'WEEKLY_REPORT_GENERATE_TEXT';
 
 const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const WEEKDAY_LABELS: Record<
@@ -109,6 +112,8 @@ export class WeeklyReportsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: WeeklyReportsPrisma,
     private readonly aiConfig: AiConfigService,
+    @Optional()
+    @Inject(WEEKLY_REPORT_GENERATE_TEXT)
     private readonly generateWeeklyReportText: GenerateTextFn = generateText,
   ) {}
 
