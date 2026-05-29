@@ -16,10 +16,10 @@ export class OnboardingService {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: userId },
-        select: { id: true, onboardedAt: true },
+        select: { id: true, onboardedAt: true, deletedAt: true },
       });
 
-      if (user?.onboardedAt) {
+      if (user?.onboardedAt && !user.deletedAt) {
         throw new ConflictException({
           code: 'ONBOARDING_ALREADY_COMPLETED',
           onboardedAt: user.onboardedAt.toISOString(),
@@ -35,12 +35,21 @@ export class OnboardingService {
         notificationTime: dto.notification?.time ?? null,
         interests: dto.interests ?? [],
         onboardedAt: new Date(),
+        deletedAt: null,
+        deletionReason: null,
       };
       const createData: Prisma.UserUncheckedCreateInput = {
         id: userId,
         ...data,
       };
       const updateData: Prisma.UserUncheckedUpdateInput = data;
+
+      if (user?.deletedAt) {
+        await tx.child.updateMany({
+          where: { userId, deletedAt: null },
+          data: { deletedAt: new Date() },
+        });
+      }
 
       await tx.user.upsert({
         where: { id: userId },
@@ -84,7 +93,28 @@ export class OnboardingService {
         notificationPreferences: { orderBy: { type: 'asc' } },
       },
     });
-    if (me) return me;
+    if (me && !me.deletedAt) return me;
+
+    if (me?.deletedAt) {
+      return {
+        id: userId,
+        name: null,
+        birthDate: null,
+        gender: null,
+        workStatus: null,
+        notificationSlot: null,
+        notificationTime: null,
+        interests: [],
+        onboardedAt: null,
+        parentingStyleId: null,
+        deletedAt: me.deletedAt,
+        deletionReason: me.deletionReason,
+        createdAt: me.createdAt,
+        updatedAt: me.updatedAt,
+        children: [],
+        notificationPreferences: [],
+      };
+    }
 
     return {
       id: userId,
