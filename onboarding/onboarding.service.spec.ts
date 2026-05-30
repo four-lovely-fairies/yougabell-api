@@ -152,6 +152,15 @@ void describe('OnboardingService', () => {
     assert.equal(prefArg.create.time, '08:30');
     assert.equal(prefArg.update.enabled, true);
     assert.equal(prefArg.update.time, '08:30');
+
+    const weeklyPrefArg = notificationUpsertCalls[1] as {
+      create: { enabled: boolean; time: string };
+      update: { enabled: boolean; time: string };
+    };
+    assert.equal(weeklyPrefArg.create.enabled, true);
+    assert.equal(weeklyPrefArg.create.time, '12:00');
+    assert.equal(weeklyPrefArg.update.enabled, true);
+    assert.equal(weeklyPrefArg.update.time, '12:00');
   });
 
   void it('creates disabled notification preferences when onboarding skips notifications', async () => {
@@ -214,5 +223,11 @@ void describe('OnboardingService', () => {
     };
     assert.equal(prefArg.create.enabled, false);
     assert.equal(prefArg.create.time, '19:00');
+
+    const weeklyPrefArg = notificationUpsertCalls[1] as {
+      create: { enabled: boolean; time: string };
+    };
+    assert.equal(weeklyPrefArg.create.enabled, false);
+    assert.equal(weeklyPrefArg.create.time, '12:00');
   });
 });

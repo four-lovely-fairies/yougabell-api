@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { NotificationPreferenceType, Prisma } from '@prisma/client';
+import { defaultNotificationTime } from '../notifications/notification-dispatch.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import type { UpdateParentDto } from './dto/update-parent.dto';
@@ -76,7 +77,7 @@ export class UsersService {
     const existing = await this.prisma.notificationPreference.findUnique({
       where: { userId_type: { userId, type } },
     });
-    const time = dto.time ?? existing?.time ?? '09:00';
+    const time = dto.time ?? existing?.time ?? defaultNotificationTime(type);
     return this.prisma.notificationPreference.upsert({
       where: { userId_type: { userId, type } },
       create: { userId, type, enabled: dto.enabled, time },

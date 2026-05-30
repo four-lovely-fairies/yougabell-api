@@ -1,5 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { NotificationPreferenceType, Prisma } from '@prisma/client';
+import { defaultNotificationTime } from '../notifications/notification-dispatch.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteOnboardingDto } from './dto/complete-onboarding.dto';
 
@@ -62,7 +63,6 @@ export class OnboardingService {
         update: updateData,
       });
 
-      const notificationTime = resolveNotificationTime(dto.notification);
       for (const type of NOTIFICATION_TYPES) {
         await tx.notificationPreference.upsert({
           where: { userId_type: { userId, type } },
@@ -70,11 +70,17 @@ export class OnboardingService {
             userId,
             type,
             enabled: Boolean(dto.notification),
-            time: notificationTime,
+            time:
+              type === 'play_10min'
+                ? resolvePlayNotificationTime(dto.notification)
+                : defaultNotificationTime(type),
           },
           update: {
             enabled: Boolean(dto.notification),
-            time: notificationTime,
+            time:
+              type === 'play_10min'
+                ? resolvePlayNotificationTime(dto.notification)
+                : defaultNotificationTime(type),
           },
         });
       }
@@ -159,7 +165,7 @@ export class OnboardingService {
   }
 }
 
-function resolveNotificationTime(
+function resolvePlayNotificationTime(
   notification: CompleteOnboardingDto['notification'],
 ): string {
   if (notification?.time) {
@@ -178,6 +184,6 @@ function resolveNotificationTime(
     case 'custom':
       return '08:00';
     default:
-      return '19:00';
+      return defaultNotificationTime('play_10min');
   }
 }

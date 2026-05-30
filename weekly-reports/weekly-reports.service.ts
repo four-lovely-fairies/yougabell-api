@@ -274,7 +274,7 @@ export class WeeklyReportsService {
         mentalBatteryChecks,
       });
 
-      const created = (await this.prisma.weeklyReport.create({
+      await this.prisma.weeklyReport.create({
         data: buildWeeklyReportCreateData({
           userId: child.userId,
           childId: child.id,
@@ -284,23 +284,7 @@ export class WeeklyReportsService {
           mentalBatteryChecks,
           ai,
         }),
-      })) as { id?: string } | undefined;
-
-      if (created?.id) {
-        await this.prisma.notification.create({
-          data: {
-            userId: child.userId,
-            childId: child.id,
-            type: 'weekly_report_ready',
-            title: '주간 리포트가 준비됐어요',
-            body: '지난주 아이와 함께한 시간을 확인해보세요.',
-            actionType: 'open_report',
-            targetType: 'weekly_report',
-            targetId: created.id,
-            priority: 'normal',
-          },
-        });
-      }
+      });
 
       generated += 1;
     }
