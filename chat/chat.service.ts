@@ -249,9 +249,12 @@ export class ChatService {
     // LLM이 cards 추출 시 sources를 반환해도 무시.
     const knowledgeSources = mergeKnowledgeSources(retrievedChunks);
 
+    // 카드 추출은 원본 full에서(누출된 행동내용도 카드로 흡수), 저장·표시 본문은 정리본.
+    const cleaned = sanitizeAssistantContent(full);
+
     const assistant = await this.saveAssistant({
       sessionId,
-      content: full,
+      content: cleaned,
       cards: cardsPayload.cards,
       sources: knowledgeSources,
       tokensUsed: totalTokens || null,
@@ -266,7 +269,7 @@ export class ChatService {
       type: 'done',
       data: {
         messageId: assistant.id,
-        content: full,
+        content: cleaned,
         cards: assistant.cards.map((card) => ({
           id: card.id,
           order: card.order,
@@ -385,6 +388,22 @@ function sumUsage(
 ): number {
   if (!usage) return 0;
   return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
+}
+
+/**
+ * 모델 본문 누출물 제거 — 프롬프트로 막아도 가끔 새므로 저장·표시 직전 결정적으로 정리.
+ * 1) 인라인 출처 번호 표기: "[참고 자료 1]", "[참고자료 1, 2]", "[출처 3]" → 제거(화면은 sources를 별도 노출)
+ * 2) 본문 끝에 붙은 cards/YAML 구조 블록("cards:\n  type: ... content: ...") → 제거
+ */
+export function sanitizeAssistantContent(raw: string): string {
+  let text = raw;
+  // 꼬리 cards: 블록 (cards: 다음 줄부터 type:/content:/- 가 이어지는 경우만)
+  text = text.replace(/\n+\s*cards:\s*[\r\n]+[\s\S]*$/i, (block) =>
+    /\b(type|content)\s*:|^\s*-\s/m.test(block) ? '' : block,
+  );
+  // 인라인 출처 번호 표기
+  text = text.replace(/\s*\[\s*(?:참고\s*자료|참고자료|출처)[^\]]*\]/g, '');
+  return text.replace(/[ \t]+\n/g, '\n').trim();
 }
 
 function splitForStreaming(text: string): string[] {

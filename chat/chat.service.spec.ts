@@ -4,7 +4,35 @@ import type { AiConfigService } from '../ai/ai-config.service';
 import type { ContextBuilderService } from '../ai/context-builder.service';
 import type { KnowledgeRetrievalService } from '../ai/knowledge-retrieval.service';
 import type { PrismaService } from '../prisma/prisma.service';
-import { ChatService } from './chat.service';
+import { ChatService, sanitizeAssistantContent } from './chat.service';
+
+void describe('sanitizeAssistantContent', () => {
+  void it('인라인 출처 번호 표기를 제거한다', () => {
+    const out = sanitizeAssistantContent(
+      '아이가 진정될 때까지 옆에 있어주세요. [참고 자료 1]',
+    );
+    assert.equal(out, '아이가 진정될 때까지 옆에 있어주세요.');
+  });
+
+  void it('여러 번호·다양한 라벨의 인용 표기를 제거한다', () => {
+    const out = sanitizeAssistantContent(
+      '조용한 공간으로 옮겨주세요. [참고 자료 1, 2] 도움이 돼요. [출처 3]',
+    );
+    assert.equal(out, '조용한 공간으로 옮겨주세요. 도움이 돼요.');
+  });
+
+  void it('본문 끝에 누출된 cards/YAML 블록을 제거한다', () => {
+    const out = sanitizeAssistantContent(
+      '차근차근 이야기 나눠볼게요.\n\ncards:\n  type: text\n  content: |\n    떼쓰기 행동 가이드',
+    );
+    assert.equal(out, '차근차근 이야기 나눠볼게요.');
+  });
+
+  void it('정상 본문은 그대로 둔다', () => {
+    const text = '성진님, 정말 대단하세요.\n\n오늘도 차근차근 해봐요.';
+    assert.equal(sanitizeAssistantContent(text), text);
+  });
+});
 
 type ChatMessageRow = {
   id: string;
