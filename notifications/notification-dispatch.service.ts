@@ -93,7 +93,7 @@ export class NotificationDispatchService {
             type: 'mission_reminder',
             title: '10분 놀이 시간이에요',
             body: `${child.name}와 오늘의 10분 놀이를 시작해보세요.`,
-            actionType: 'open_home',
+            actionType: 'open_mission',
             targetType: 'child',
             targetId: child.id,
             priority: 'normal',
