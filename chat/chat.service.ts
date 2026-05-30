@@ -339,6 +339,20 @@ function sumUsage(
   return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
 }
 
+/**
+ * 모델 본문 누출물 제거 — 프롬프트로 막아도 가끔 새므로 저장·표시 직전 결정적으로 정리.
+ * 1) 인라인 출처 번호 표기: "[참고 자료 1]", "[참고자료 1, 2]", "[출처 3]" → 제거
+ * 2) 본문 끝에 붙은 cards/YAML 구조 블록("cards:\n  type: ... content: ...") → 제거
+ */
+export function sanitizeAssistantContent(raw: string): string {
+  let text = raw;
+  text = text.replace(/\n+\s*cards:\s*[\r\n]+[\s\S]*$/i, (block) =>
+    /\b(type|content)\s*:|^\s*-\s/m.test(block) ? '' : block,
+  );
+  text = text.replace(/\s*\[\s*(?:참고\s*자료|참고자료|출처)[^\]]*\]/g, '');
+  return text.replace(/[ \t]+\n/g, '\n').trim();
+}
+
 function toChatMessage(row: MessageWithRelations): ChatMessage {
   return {
     id: row.id,
