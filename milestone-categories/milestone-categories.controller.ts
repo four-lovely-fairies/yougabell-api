@@ -1,12 +1,15 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { AdminRoleGuard } from '../auth/admin-role.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SkipOnboardingCheck } from '../auth/skip-onboarding-check.decorator';
 import { MilestoneCategoryResponseDto } from './dto/milestone-category.dto';
 import { MilestoneCategoriesService } from './milestone-categories.service';
 
-// TODO(auth): AdminGuard 도입 후 @UseGuards 복원. 현재는 dev only 무가드.
 @ApiTags('admin/categories')
+@ApiBearerAuth()
 @Controller('admin/categories')
+@UseGuards(JwtAuthGuard, AdminRoleGuard)
 @SkipOnboardingCheck()
 export class MilestoneCategoriesController {
   constructor(private readonly service: MilestoneCategoriesService) {}

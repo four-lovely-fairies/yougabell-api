@@ -87,14 +87,14 @@ function createPrismaStub(options: {
 }) {
   return {
     mentalBatteryCheck: {
-      findFirst: async () => options.existingCheck,
-      create: async (args: unknown) => {
+      findFirst: () => Promise.resolve(options.existingCheck),
+      create: (args: unknown) => {
         options.onCreate?.(args);
-        return options.createdCheck;
+        return Promise.resolve(options.createdCheck);
       },
-      update: async (args: unknown) => {
+      update: (args: unknown) => {
         options.onUpdate?.(args);
-        return options.updatedCheck;
+        return Promise.resolve(options.updatedCheck);
       },
     },
   };

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AdminRoleGuard } from '../auth/admin-role.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SkipOnboardingCheck } from '../auth/skip-onboarding-check.decorator';
 import { AdminService } from './admin.service';
@@ -9,13 +10,12 @@ import { ListUsersDto } from './dto/list-users.dto';
 /**
  * 운영자(admin) 전용 라우트.
  *
- * TODO(auth): `AdminRoleGuard` 추가 — Supabase `auth.users.app_metadata.role === 'admin'` 검증.
- * 현재는 `JwtAuthGuard` placeholder만 적용 (누구나 접근 가능, 별도 task에서 잠금).
+ * Supabase `auth.users.app_metadata.role === 'admin'` 계정만 접근 가능.
  */
 @ApiTags('admin')
 @ApiBearerAuth()
 @Controller('admin')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AdminRoleGuard)
 @SkipOnboardingCheck()
 export class AdminController {
   constructor(private readonly service: AdminService) {}

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { MissionExecutionStatus, Prisma } from '@prisma/client';
-import { getAgeLabel, getAgeMonths } from '../home/home-date.utils';
+import { getAgeLabel, getAgeMonths, toDateOnly } from '../home/home-date.utils';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateMissionDto,
@@ -307,8 +307,19 @@ export class MissionsService {
       selectedChild: {
         id: selectedChild.id,
         name: selectedChild.name,
+        birthDate: toDateOnly(
+          new Date(selectedChild.birthDate.getTime() + 9 * 60 * 60 * 1000),
+        ),
         ageLabel: getAgeLabel(selectedChild.birthDate, today),
       },
+      children: children.map((child) => ({
+        id: child.id,
+        name: child.name,
+        birthDate: toDateOnly(
+          new Date(child.birthDate.getTime() + 9 * 60 * 60 * 1000),
+        ),
+        ageLabel: getAgeLabel(child.birthDate, today),
+      })),
       mission: {
         id: currentMission.mission.id,
         subThemeLabel: currentMission.mission.subThemeLabel,

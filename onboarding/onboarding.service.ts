@@ -1,7 +1,13 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { NotificationPreferenceType, Prisma } from '@prisma/client';
+import { defaultNotificationTime } from '../notifications/notification-dispatch.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteOnboardingDto } from './dto/complete-onboarding.dto';
+
+const NOTIFICATION_TYPES: NotificationPreferenceType[] = [
+  'play_10min',
+  'weekly_report',
+];
 
 @Injectable()
 export class OnboardingService {
@@ -16,10 +22,10 @@ export class OnboardingService {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: userId },
-        select: { id: true, onboardedAt: true },
+        select: { id: true, onboardedAt: true, deletedAt: true },
       });
 
-      if (user?.onboardedAt) {
+      if (user?.onboardedAt && !user.deletedAt) {
         throw new ConflictException({
           code: 'ONBOARDING_ALREADY_COMPLETED',
           onboardedAt: user.onboardedAt.toISOString(),
@@ -35,6 +41,8 @@ export class OnboardingService {
         notificationTime: dto.notification?.time ?? null,
         interests: dto.interests ?? [],
         onboardedAt: new Date(),
+        deletedAt: null,
+        deletionReason: null,
       };
       const createData: Prisma.UserUncheckedCreateInput = {
         id: userId,
@@ -42,11 +50,40 @@ export class OnboardingService {
       };
       const updateData: Prisma.UserUncheckedUpdateInput = data;
 
+      if (user?.deletedAt) {
+        await tx.child.updateMany({
+          where: { userId, deletedAt: null },
+          data: { deletedAt: new Date() },
+        });
+      }
+
       await tx.user.upsert({
         where: { id: userId },
         create: createData,
         update: updateData,
       });
+
+      for (const type of NOTIFICATION_TYPES) {
+        await tx.notificationPreference.upsert({
+          where: { userId_type: { userId, type } },
+          create: {
+            userId,
+            type,
+            enabled: Boolean(dto.notification),
+            time:
+              type === 'play_10min'
+                ? resolvePlayNotificationTime(dto.notification)
+                : defaultNotificationTime(type),
+          },
+          update: {
+            enabled: Boolean(dto.notification),
+            time:
+              type === 'play_10min'
+                ? resolvePlayNotificationTime(dto.notification)
+                : defaultNotificationTime(type),
+          },
+        });
+      }
 
       await tx.child.createMany({
         data: dto.children.map((c, idx) => ({
@@ -84,7 +121,28 @@ export class OnboardingService {
         notificationPreferences: { orderBy: { type: 'asc' } },
       },
     });
-    if (me) return me;
+    if (me && !me.deletedAt) return me;
+
+    if (me?.deletedAt) {
+      return {
+        id: userId,
+        name: null,
+        birthDate: null,
+        gender: null,
+        workStatus: null,
+        notificationSlot: null,
+        notificationTime: null,
+        interests: [],
+        onboardedAt: null,
+        parentingStyleId: null,
+        deletedAt: me.deletedAt,
+        deletionReason: me.deletionReason,
+        createdAt: me.createdAt,
+        updatedAt: me.updatedAt,
+        children: [],
+        notificationPreferences: [],
+      };
+    }
 
     return {
       id: userId,
@@ -104,5 +162,28 @@ export class OnboardingService {
       children: [],
       notificationPreferences: [],
     };
+  }
+}
+
+function resolvePlayNotificationTime(
+  notification: CompleteOnboardingDto['notification'],
+): string {
+  if (notification?.time) {
+    return notification.time;
+  }
+
+  switch (notification?.slot) {
+    case 'morning':
+      return '08:00';
+    case 'afternoon':
+      return '12:00';
+    case 'evening':
+      return '18:00';
+    case 'night':
+      return '22:00';
+    case 'custom':
+      return '08:00';
+    default:
+      return defaultNotificationTime('play_10min');
   }
 }

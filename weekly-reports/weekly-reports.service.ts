@@ -2,8 +2,8 @@ import {
   ConflictException,
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { generateText, Output } from 'ai';
 import { AiConfigService } from '../ai/ai-config.service';
@@ -26,6 +26,10 @@ type AiGenerationResult = {
   promptTokens: number | null;
   completionTokens: number | null;
 };
+
+type GenerateTextFn = typeof generateText;
+
+export const WEEKLY_REPORT_GENERATE_TEXT = 'WEEKLY_REPORT_GENERATE_TEXT';
 
 const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const WEEKDAY_LABELS: Record<
@@ -105,11 +109,12 @@ type WeeklyReportRecord = {
 
 @Injectable()
 export class WeeklyReportsService {
-  private readonly logger = new Logger(WeeklyReportsService.name);
-
   constructor(
     @Inject(PrismaService) private readonly prisma: WeeklyReportsPrisma,
     private readonly aiConfig: AiConfigService,
+    @Optional()
+    @Inject(WEEKLY_REPORT_GENERATE_TEXT)
+    private readonly generateWeeklyReportText: GenerateTextFn = generateText,
   ) {}
 
   async getCurrent(
@@ -269,7 +274,7 @@ export class WeeklyReportsService {
         mentalBatteryChecks,
       });
 
-      const created = (await this.prisma.weeklyReport.create({
+      await this.prisma.weeklyReport.create({
         data: buildWeeklyReportCreateData({
           userId: child.userId,
           childId: child.id,
@@ -279,23 +284,7 @@ export class WeeklyReportsService {
           mentalBatteryChecks,
           ai,
         }),
-      })) as { id?: string } | undefined;
-
-      if (created?.id) {
-        await this.prisma.notification.create({
-          data: {
-            userId: child.userId,
-            childId: child.id,
-            type: 'weekly_report_ready',
-            title: '주간 리포트가 준비됐어요',
-            body: '지난주 아이와 함께한 시간을 확인해보세요.',
-            actionType: 'open_report',
-            targetType: 'weekly_report',
-            targetId: created.id,
-            priority: 'normal',
-          },
-        });
-      }
+      });
 
       generated += 1;
     }
@@ -309,16 +298,13 @@ export class WeeklyReportsService {
 
   /**
    * 기획 docs/features/20260525-ai-integration.md §3.2 Phase 3 AI 필드 3개.
-   * - GOOGLE_GENERATIVE_AI_API_KEY 미설정 → null 반환 (fallback 텍스트 사용)
-   * - 실패 시 warn 로그 + null 반환 (row는 항상 생성)
+   * AI 설정 누락 또는 생성 실패는 리포트 생성 실패로 처리한다.
    */
   private async generateAiSection(args: {
     child: { name: string; birthDate: Date; gender: string };
     executions: MissionExecutionForReport[];
     mentalBatteryChecks: Array<{ level: number }>;
-  }): Promise<AiGenerationResult | null> {
-    if (!this.aiConfig.isEnabled) return null;
-
+  }): Promise<AiGenerationResult> {
     const totalMissionDurationSeconds = args.executions.reduce(
       (sum, e) =>
         sum + (e.actualDurationSeconds ?? e.mission.durationMinutes * 60),
@@ -353,36 +339,29 @@ export class WeeklyReportsService {
 
     const ageMonths = monthsBetween(args.child.birthDate, new Date());
 
-    try {
-      const result = await generateText({
-        model: this.aiConfig.reportModel(),
-        system: WEEKLY_REPORT_SYSTEM_PROMPT,
-        prompt: buildWeeklyReportPrompt({
-          child: {
-            name: args.child.name,
-            ageMonths,
-            gender: args.child.gender,
-          },
-          totalMissionDurationSeconds,
-          childPositiveReactionRate,
-          psychologicalEnergy,
-          topKeywords,
-          bestMomentSeeds,
-        }),
-        experimental_output: Output.object({ schema: WeeklyReportAiSchema }),
-      });
+    const result = await this.generateWeeklyReportText({
+      model: this.aiConfig.reportModel(),
+      system: WEEKLY_REPORT_SYSTEM_PROMPT,
+      prompt: buildWeeklyReportPrompt({
+        child: {
+          name: args.child.name,
+          ageMonths,
+          gender: args.child.gender,
+        },
+        totalMissionDurationSeconds,
+        childPositiveReactionRate,
+        psychologicalEnergy,
+        topKeywords,
+        bestMomentSeeds,
+      }),
+      experimental_output: Output.object({ schema: WeeklyReportAiSchema }),
+    });
 
-      return {
-        payload: result.experimental_output,
-        promptTokens: result.usage?.inputTokens ?? null,
-        completionTokens: result.usage?.outputTokens ?? null,
-      };
-    } catch (err) {
-      this.logger.warn(
-        `weekly report AI failed: ${(err as Error).message} — fallback 사용`,
-      );
-      return null;
-    }
+    return {
+      payload: result.experimental_output,
+      promptTokens: result.usage?.inputTokens ?? null,
+      completionTokens: result.usage?.outputTokens ?? null,
+    };
   }
 
   private async getEmptyState(
@@ -477,7 +456,7 @@ function buildWeeklyReportCreateData({
   weekEnd: Date;
   executions: MissionExecutionForReport[];
   mentalBatteryChecks: Array<{ level: number }>;
-  ai: AiGenerationResult | null;
+  ai: AiGenerationResult;
 }) {
   const totalMissionDurationSeconds = executions.reduce(
     (sum, execution) =>
@@ -503,7 +482,7 @@ function buildWeeklyReportCreateData({
 
   const baseBestMoments = buildBestMomentRows(executions);
   const aiBestMomentByOrder = new Map(
-    (ai?.payload.bestMomentBodies ?? []).map((m) => [m.order, m.body]),
+    ai.payload.bestMomentBodies.map((m) => [m.order, m.body]),
   );
   const mergedBestMoments = baseBestMoments.map((row) => ({
     ...row,
@@ -516,18 +495,14 @@ function buildWeeklyReportCreateData({
     weekStart,
     weekEnd,
     headline: '이번 주도 아이와의 시간을 잘 쌓아가고 있어요.',
-    headlineBody:
-      ai?.payload.headlineBody ??
-      '짧은 시간이라도 꾸준히 함께한 기록은 아이에게 안정감을 줍니다.',
+    headlineBody: ai.payload.headlineBody,
     totalMissionDurationSeconds,
     childPositiveReactionRate,
     psychologicalEnergy,
-    aiActionSuggestion:
-      ai?.payload.aiActionSuggestion ??
-      '다음 미션 후 피드백에 아이가 자주 말한 단어나 기억에 남는 반응을 남겨보세요.',
-    aiGeneratedAt: ai ? new Date() : null,
-    aiPromptTokens: ai?.promptTokens ?? null,
-    aiCompletionTokens: ai?.completionTokens ?? null,
+    aiActionSuggestion: ai.payload.aiActionSuggestion,
+    aiGeneratedAt: new Date(),
+    aiPromptTokens: ai.promptTokens,
+    aiCompletionTokens: ai.completionTokens,
     generatedAt: new Date(),
     days: { create: buildDayRows(executions) },
     topKeywords: { create: buildKeywordRows(executions) },

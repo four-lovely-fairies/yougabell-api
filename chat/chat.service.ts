@@ -20,7 +20,6 @@ import {
 } from '../ai/prompts/chat-cards';
 import { buildChatSystemPrompt } from '../ai/prompts/chat-system';
 import { PrismaService } from '../prisma/prisma.service';
-import { MOCK_ASSISTANT_REPLY } from './chat.mock-reply';
 import {
   CHAT_RECENT_MESSAGES_LIMIT,
   type ChatMessage,
@@ -89,8 +88,7 @@ export class ChatService {
   }
 
   /**
-   * Phase 2 — Gemini SSE 스트리밍.
-   * GOOGLE_GENERATIVE_AI_API_KEY 미설정 시 mock 응답을 토큰 단위로 흘려보냄.
+   * Gemini SSE 스트리밍.
    * 이벤트:
    *   - token: { text } — 본문 청크
    *   - done:  { messageId, content, cards, sources } — 완료 + 영속화된 메시지
@@ -108,10 +106,6 @@ export class ChatService {
     });
 
     try {
-      if (!this.aiConfig.isEnabled) {
-        yield* this.streamMockReply(session.id);
-        return;
-      }
       yield* this.streamGeminiReply(session.id, userId, content);
     } catch (err) {
       this.logger.error('chat stream failed', err as Error);
@@ -126,51 +120,6 @@ export class ChatService {
         .update({ where: { id: session.id }, data: { updatedAt: new Date() } })
         .catch(() => undefined);
     }
-  }
-
-  private async *streamMockReply(
-    sessionId: string,
-  ): AsyncGenerator<ChatStreamEvent> {
-    const content = MOCK_ASSISTANT_REPLY.content;
-    // 문장 단위로 잘라서 token처럼 흘려보냄 (실서비스 typing 효과 모방)
-    const chunks = splitForStreaming(content);
-    for (const chunk of chunks) {
-      yield { type: 'token', data: { text: chunk } };
-      await sleep(40);
-    }
-    const assistant = await this.saveAssistant({
-      sessionId,
-      content,
-      cards: MOCK_ASSISTANT_REPLY.cards.map((card) => ({
-        title: card.title,
-        body: card.body,
-      })),
-      sources: [],
-    });
-    yield {
-      type: 'done',
-      data: {
-        messageId: assistant.id,
-        content,
-        cards: assistant.cards.map((card) => ({
-          id: card.id,
-          order: card.order,
-          title: card.title,
-          body: card.body,
-          actionType: card.actionType,
-          actionPayload:
-            card.actionPayload === null
-              ? null
-              : (card.actionPayload as Record<string, unknown>),
-        })),
-        sources: assistant.sourceLinks.map((source) => ({
-          id: source.id,
-          url: source.url,
-          domain: source.domain,
-          title: source.title,
-        })),
-      },
-    };
   }
 
   private async *streamGeminiReply(
@@ -388,42 +337,6 @@ function sumUsage(
 ): number {
   if (!usage) return 0;
   return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
-}
-
-/**
- * 모델 본문 누출물 제거 — 프롬프트로 막아도 가끔 새므로 저장·표시 직전 결정적으로 정리.
- * 1) 인라인 출처 번호 표기: "[참고 자료 1]", "[참고자료 1, 2]", "[출처 3]" → 제거(화면은 sources를 별도 노출)
- * 2) 본문 끝에 붙은 cards/YAML 구조 블록("cards:\n  type: ... content: ...") → 제거
- */
-export function sanitizeAssistantContent(raw: string): string {
-  let text = raw;
-  // 꼬리 cards: 블록 (cards: 다음 줄부터 type:/content:/- 가 이어지는 경우만)
-  text = text.replace(/\n+\s*cards:\s*[\r\n]+[\s\S]*$/i, (block) =>
-    /\b(type|content)\s*:|^\s*-\s/m.test(block) ? '' : block,
-  );
-  // 인라인 출처 번호 표기
-  text = text.replace(/\s*\[\s*(?:참고\s*자료|참고자료|출처)[^\]]*\]/g, '');
-  return text.replace(/[ \t]+\n/g, '\n').trim();
-}
-
-function splitForStreaming(text: string): string[] {
-  // 문장 종결 부호 기준으로 분할. 너무 짧은 조각은 합쳐서 자연스럽게.
-  const parts = text.match(/[^.!?]+[.!?]*\s*/g) ?? [text];
-  const out: string[] = [];
-  let buffer = '';
-  for (const piece of parts) {
-    buffer += piece;
-    if (buffer.length >= 12) {
-      out.push(buffer);
-      buffer = '';
-    }
-  }
-  if (buffer) out.push(buffer);
-  return out;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function toChatMessage(row: MessageWithRelations): ChatMessage {

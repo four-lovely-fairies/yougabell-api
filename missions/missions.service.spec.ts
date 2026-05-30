@@ -193,6 +193,9 @@ void describe('MissionsService', () => {
     const result = await service.getCurrentMission('user-1', {});
 
     assert.equal(result.selectedChild.id, 'child-1');
+    assert.equal(result.selectedChild.birthDate, '2023-04-20');
+    assert.equal(result.children.length, 1);
+    assert.equal(result.children[0]?.id, 'child-1');
     assert.equal(result.mission.id, 'mission-1');
     assert.equal(result.mission.status, 'in_progress');
     assert.equal(result.mission.categoryLabel, '언어발달');

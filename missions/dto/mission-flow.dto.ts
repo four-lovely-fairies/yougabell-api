@@ -24,6 +24,9 @@ export class MissionSelectedChildDto {
   @ApiProperty()
   name!: string;
 
+  @ApiProperty({ format: 'date' })
+  birthDate!: string;
+
   @ApiProperty()
   ageLabel!: string;
 }
@@ -86,6 +89,9 @@ export class ActiveMissionExecutionDto {
 export class GetCurrentMissionResponseDto {
   @ApiProperty({ type: MissionSelectedChildDto })
   selectedChild!: MissionSelectedChildDto;
+
+  @ApiProperty({ type: [MissionSelectedChildDto] })
+  children!: MissionSelectedChildDto[];
 
   @ApiProperty({ type: CurrentMissionDetailDto })
   mission!: CurrentMissionDetailDto;

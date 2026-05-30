@@ -93,7 +93,11 @@ type PrismaStub = {
   };
 };
 
-const aiDisabled = { isEnabled: false } as unknown as AiConfigService;
+const aiUnavailable = {
+  chatModel: () => {
+    throw new Error('AI provider not configured.');
+  },
+} as unknown as AiConfigService;
 const contextBuilder = {} as unknown as ContextBuilderService;
 const knowledgeDisabled = {
   retrieve: () => Promise.resolve([]),
@@ -106,7 +110,7 @@ void describe('ChatService.getChat', () => {
     const prisma = createPrismaStub({ session: null });
     const service = new ChatService(
       prisma as unknown as PrismaService,
-      aiDisabled,
+      aiUnavailable,
       contextBuilder,
       knowledgeDisabled,
     );
@@ -143,7 +147,7 @@ void describe('ChatService.getChat', () => {
     const prisma = createPrismaStub({ session, messages: newestFirst });
     const service = new ChatService(
       prisma as unknown as PrismaService,
-      aiDisabled,
+      aiUnavailable,
       contextBuilder,
       knowledgeDisabled,
     );
@@ -159,12 +163,12 @@ void describe('ChatService.getChat', () => {
   });
 });
 
-void describe('ChatService.streamMessage (AI disabled fallback)', () => {
-  void it('persists user message, yields mock token stream + done event with cards', async () => {
+void describe('ChatService.streamMessage', () => {
+  void it('persists user message and emits an error when AI provider is unavailable', async () => {
     const prisma = createPrismaStub({ session: null });
     const service = new ChatService(
       prisma as unknown as PrismaService,
-      aiDisabled,
+      aiUnavailable,
       contextBuilder,
       knowledgeDisabled,
     );
@@ -179,33 +183,16 @@ void describe('ChatService.streamMessage (AI disabled fallback)', () => {
 
     // session lazy create
     assert.equal(prisma._calls.sessionCreate, 1);
-    // user message + assistant message
+    // user message only; assistant response is not fabricated when AI is unavailable.
     const createdRoles = prisma._messageCreates.map((c) => c.data.role);
-    assert.deepEqual(createdRoles, ['user', 'assistant']);
+    assert.deepEqual(createdRoles, ['user']);
     assert.equal(prisma._messageCreates[0].data.content, '잠자리 도와주세요');
-    // assistant has cards
-    const assistantCreate = prisma._messageCreates[1];
-    const cardsArg = assistantCreate.data.cards?.create ?? [];
-    assert.ok(
-      cardsArg.length >= 1,
-      'assistant message should include mock cards',
-    );
-    // events: at least one token + one done
     const tokens = events.filter((e) => e.type === 'token');
     const dones = events.filter((e) => e.type === 'done');
     const errors = events.filter((e) => e.type === 'error');
-    assert.ok(tokens.length > 0, 'expected at least one token event');
-    assert.equal(dones.length, 1, 'expected exactly one done event');
-    assert.equal(errors.length, 0, 'should not emit error in mock fallback');
-    // done payload includes content + cards
-    const donePayload = dones[0].data as {
-      messageId: string;
-      content: string;
-      cards: unknown[];
-    };
-    assert.ok(donePayload.messageId);
-    assert.ok(donePayload.content.length > 10);
-    assert.ok(donePayload.cards.length >= 1);
+    assert.equal(tokens.length, 0);
+    assert.equal(dones.length, 0);
+    assert.equal(errors.length, 1);
   });
 });
 
@@ -214,7 +201,7 @@ void describe('ChatService.deleteChat', () => {
     const prisma = createPrismaStub({ session: null });
     const service = new ChatService(
       prisma as unknown as PrismaService,
-      aiDisabled,
+      aiUnavailable,
       contextBuilder,
       knowledgeDisabled,
     );

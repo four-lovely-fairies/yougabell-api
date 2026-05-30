@@ -40,10 +40,10 @@ export class OnboardingCompleteGuard implements CanActivate {
 
     const user = await this.prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { onboardedAt: true },
+      select: { onboardedAt: true, deletedAt: true },
     });
 
-    if (!user?.onboardedAt) {
+    if (!user?.onboardedAt || user.deletedAt) {
       throw new ForbiddenException({
         code: 'ONBOARDING_REQUIRED',
         redirectTo: '/onboarding',
