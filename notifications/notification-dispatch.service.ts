@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { NotificationPreferenceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -28,7 +28,9 @@ type DispatchPrisma = Pick<
 
 @Injectable()
 export class NotificationDispatchService {
-  constructor(private readonly prisma: DispatchPrisma) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: DispatchPrisma,
+  ) {}
 
   async dispatchPlayReminders(input: DispatchInput): Promise<DispatchResult> {
     const now = resolveNow(input.now);
