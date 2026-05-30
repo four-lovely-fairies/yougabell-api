@@ -1,7 +1,12 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { NotificationPreferenceType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteOnboardingDto } from './dto/complete-onboarding.dto';
+
+const NOTIFICATION_TYPES: NotificationPreferenceType[] = [
+  'play_10min',
+  'weekly_report',
+];
 
 @Injectable()
 export class OnboardingService {
@@ -56,6 +61,23 @@ export class OnboardingService {
         create: createData,
         update: updateData,
       });
+
+      const notificationTime = resolveNotificationTime(dto.notification);
+      for (const type of NOTIFICATION_TYPES) {
+        await tx.notificationPreference.upsert({
+          where: { userId_type: { userId, type } },
+          create: {
+            userId,
+            type,
+            enabled: Boolean(dto.notification),
+            time: notificationTime,
+          },
+          update: {
+            enabled: Boolean(dto.notification),
+            time: notificationTime,
+          },
+        });
+      }
 
       await tx.child.createMany({
         data: dto.children.map((c, idx) => ({
@@ -134,5 +156,28 @@ export class OnboardingService {
       children: [],
       notificationPreferences: [],
     };
+  }
+}
+
+function resolveNotificationTime(
+  notification: CompleteOnboardingDto['notification'],
+): string {
+  if (notification?.time) {
+    return notification.time;
+  }
+
+  switch (notification?.slot) {
+    case 'morning':
+      return '08:00';
+    case 'afternoon':
+      return '12:00';
+    case 'evening':
+      return '18:00';
+    case 'night':
+      return '22:00';
+    case 'custom':
+      return '08:00';
+    default:
+      return '19:00';
   }
 }
