@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ChatRole, Prisma } from '@prisma/client';
-import { generateText, Output, streamText, type ModelMessage } from 'ai';
+import {
+  generateText,
+  Output,
+  streamText,
+  type FinishReason,
+  type ModelMessage,
+} from 'ai';
 import { AiConfigService } from '../ai/ai-config.service';
 import { ContextBuilderService } from '../ai/context-builder.service';
 import {
@@ -22,6 +28,12 @@ import {
 } from './chat.types';
 
 const RECENT_HISTORY_FOR_PROMPT = 10;
+
+// 생성 호출 1회당 출력 토큰 상한. 이 한도에서 문장이 끊기면 다음 세그먼트로
+// "이어서" 생성한다(글자수가 아니라 문장 완결을 기준으로 멈추기 위함).
+const CHAT_SEGMENT_MAX_OUTPUT_TOKENS = 1024;
+// 한 응답에서 이어 생성할 최대 세그먼트 수 — 폭주 방지 안전 상한.
+const CHAT_MAX_SEGMENTS = 5;
 
 type MessageWithRelations = Prisma.ChatMessageGetPayload<{
   include: { cards: true; sourceLinks: true };
@@ -122,29 +134,49 @@ export class ChatService {
       this.knowledge.retrieve(content, 5),
     ]);
 
+    const system = buildChatSystemPrompt(context, retrievedChunks);
     const messages: ModelMessage[] = [...history, { role: 'user', content }];
 
-    const result = streamText({
-      model: this.aiConfig.chatModel(),
-      system: buildChatSystemPrompt(context, retrievedChunks),
-      messages,
-    });
-
+    // 응답이 출력 토큰 상한에 걸려 "문장 중간에" 끊기면(finishReason 'length'),
+    // 같은 턴을 이어서 다시 생성한다 — 큐 방식. 모델이 자연 종료('stop' = 문장
+    // 완결)하거나 안전 상한(CHAT_MAX_SEGMENTS)에 도달할 때까지 반복.
     let full = '';
-    for await (const chunk of result.textStream) {
-      full += chunk;
-      yield { type: 'token', data: { text: chunk } };
-    }
+    let totalTokens = 0;
+    for (let segment = 0; segment < CHAT_MAX_SEGMENTS; segment += 1) {
+      const result = streamText({
+        model: this.aiConfig.chatModel(),
+        system,
+        messages,
+        maxOutputTokens: CHAT_SEGMENT_MAX_OUTPUT_TOKENS,
+      });
 
-    // streamText 완료 후 usage 확인 (AI SDK v6: PromiseLike)
-    let streamUsage: { inputTokens?: number; outputTokens?: number } | null =
-      null;
-    try {
-      streamUsage = await result.usage;
-    } catch {
-      // usage 미노출 / 모델 미지원 — totalTokens는 null로 둔다.
+      let segmentText = '';
+      for await (const chunk of result.textStream) {
+        segmentText += chunk;
+        full += chunk;
+        yield { type: 'token', data: { text: chunk } };
+      }
+
+      // usage 누적 (AI SDK v6: PromiseLike, 미지원 시 무시)
+      try {
+        totalTokens += sumUsage(await result.usage);
+      } catch {
+        // usage 미노출 / 모델 미지원 — 누적 생략
+      }
+
+      let finishReason: FinishReason = 'stop';
+      try {
+        finishReason = await result.finishReason;
+      } catch {
+        // finishReason 미노출 — 자연 종료로 간주
+      }
+      // 길이로 잘렸고(=문장 미완결) 상한 전이면 직전 출력을 이어받아 계속 생성
+      if (finishReason === 'length' && segment < CHAT_MAX_SEGMENTS - 1) {
+        messages.push({ role: 'assistant', content: segmentText });
+        continue;
+      }
+      break;
     }
-    let totalTokens = sumUsage(streamUsage);
 
     let cardsPayload: ChatCardsPayload = { cards: [], sources: [] };
     try {
@@ -166,9 +198,12 @@ export class ChatService {
     // LLM이 cards 추출 시 sources를 반환해도 무시.
     const knowledgeSources = mergeKnowledgeSources(retrievedChunks);
 
+    // 카드 추출은 원본 full에서(누출된 행동내용도 카드로 흡수), 저장·표시 본문은 정리본.
+    const cleaned = sanitizeAssistantContent(full);
+
     const assistant = await this.saveAssistant({
       sessionId,
-      content: full,
+      content: cleaned,
       cards: cardsPayload.cards,
       sources: knowledgeSources,
       tokensUsed: totalTokens || null,
@@ -183,7 +218,7 @@ export class ChatService {
       type: 'done',
       data: {
         messageId: assistant.id,
-        content: full,
+        content: cleaned,
         cards: assistant.cards.map((card) => ({
           id: card.id,
           order: card.order,
