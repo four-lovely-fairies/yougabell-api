@@ -2,7 +2,7 @@ name: Warm API (Render free tier)
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -10,16 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Ping API root
+      - name: Ping API health
         env:
           API_URL: ${{ secrets.YOUGABELL_API_URL }}
         run: |
           set -e
           base="${API_URL:-https://yougabell-api.onrender.com}"
           base="${base%/}"
-          echo "Pinging ${base}/"
+          echo "Pinging ${base}/health"
           # -m 90 → cold start can take ~50s on Render free tier
-          status=$(curl -s -o /dev/null -m 90 -w "%{http_code}" "${base}/")
+          status=$(curl -s -o /dev/null -m 90 -w "%{http_code}" "${base}/health")
           echo "HTTP ${status}"
           # 200~399만 통과
           [ "${status}" -ge 200 ] && [ "${status}" -lt 400 ]
