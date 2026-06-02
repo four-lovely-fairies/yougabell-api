@@ -46,7 +46,7 @@ export class AdminService {
       items: items.map((u) => ({
         id: u.id,
         name: u.name,
-        birthDate: u.birthDate.toISOString(),
+        birthDate: u.birthDate?.toISOString() ?? null,
         gender: u.gender,
         workStatus: u.workStatus,
         onboardedAt: u.onboardedAt?.toISOString() ?? null,

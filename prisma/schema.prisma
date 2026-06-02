@@ -19,8 +19,9 @@ datasource db {
 model User {
   id               String            @id @db.Uuid // = Supabase auth.users.id (lazy-create on first authed request)
   name             String
-  birthDate        DateTime          @db.Date
-  gender           Gender
+  // App Store 심사(5.1.1): 부모 생년월일·성별은 핵심 기능에 불필요하므로 선택 입력(nullable).
+  birthDate        DateTime?         @db.Date
+  gender           Gender?
   workStatus       WorkStatus? // 온보딩 v2: 선택 입력 (docs/features/20260508-onboarding.md)
   // 온보딩 v3: 단일 알림 시간대 선택 (Figma 2146:4530). v2 매트릭스(UserAppUsageSlot) 폐기.
   // 설정 v1(docs/features/20260519-settings.md): NotificationPreference 모델로 종류별 관리 시작. 본 두 필드는 deprecated 예정 — onboarding 호환 위해 임시 보존.
