@@ -55,6 +55,11 @@ export class OnboardingService {
           where: { userId, deletedAt: null },
           data: { deletedAt: new Date() },
         });
+        // 탈퇴 후 재온보딩 — 같은 userId(Supabase uid)를 재사용하므로 옛 채팅
+        // 세션/메시지가 그대로 남아 새 자녀 정보와 충돌한다(삭제된 자녀 이름이
+        // 히스토리에 남아 답변에 인용됨). 대화는 의도적으로 초기화.
+        // ChatSession→ChatMessage→(cards/sourceLinks/tags/retrievals) 모두 cascade.
+        await tx.chatSession.deleteMany({ where: { userId } });
       }
 
       await tx.user.upsert({
