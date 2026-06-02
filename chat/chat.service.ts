@@ -341,14 +341,20 @@ function sumUsage(
 
 /**
  * 모델 본문 누출물 제거 — 프롬프트로 막아도 가끔 새므로 저장·표시 직전 결정적으로 정리.
- * 1) 인라인 출처 번호 표기: "[참고 자료 1]", "[참고자료 1, 2]", "[출처 3]" → 제거
- * 2) 본문 끝에 붙은 cards/YAML 구조 블록("cards:\n  type: ... content: ...") → 제거
+ * 1) 본문 끝에 붙은 cards/YAML 구조 블록("cards:"·"type:"·"content:" 시작 지점부터 끝까지) → 제거
+ * 2) 코드펜스(```)는 금지 서식 — 펜스 마커만 걷어내고 안의 텍스트는 본문으로 흡수 (한 줄 overflow 방지)
+ * 3) 인라인 출처 번호 표기: "[참고 자료 1]", "[참고자료 1, 2]", "[출처 3]" → 제거
  */
 export function sanitizeAssistantContent(raw: string): string {
   let text = raw;
-  text = text.replace(/\n+\s*cards:\s*[\r\n]+[\s\S]*$/i, (block) =>
-    /\b(type|content)\s*:|^\s*-\s/m.test(block) ? '' : block,
+  // cards: 외에도 단독 type:/content: 로 시작하는 누출 블록까지 끝까지 제거.
+  text = text.replace(
+    /\n+\s*(?:cards|type|content)\s*:[\r\n]?[\s\S]*$/i,
+    (block) =>
+      /\b(?:cards|type|content)\s*:|^\s*-\s/m.test(block) ? '' : block,
   );
+  // 코드펜스 마커만 제거 (내용 보존). 챗 본문은 코드블록을 쓰지 않음.
+  text = text.replace(/```[a-zA-Z0-9]*\n?/g, '');
   text = text.replace(/\s*\[\s*(?:참고\s*자료|참고자료|출처)[^\]]*\]/g, '');
   return text.replace(/[ \t]+\n/g, '\n').trim();
 }

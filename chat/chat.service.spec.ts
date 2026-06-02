@@ -28,6 +28,20 @@ void describe('sanitizeAssistantContent', () => {
     assert.equal(out, '차근차근 이야기 나눠볼게요.');
   });
 
+  void it('cards 없이 단독 type:/content: 로 시작하는 누출 블록도 제거한다', () => {
+    const out = sanitizeAssistantContent(
+      '오늘도 충분히 잘하고 계세요.\n\ntype: text\ncontent: |\n  1. 물 마시기\n  2. 산책하기',
+    );
+    assert.equal(out, '오늘도 충분히 잘하고 계세요.');
+  });
+
+  void it('코드펜스 마커는 걷어내고 안의 텍스트는 남긴다', () => {
+    const out = sanitizeAssistantContent(
+      '차분히 안아주세요.\n```\n괜찮아요\n```',
+    );
+    assert.equal(out, '차분히 안아주세요.\n괜찮아요');
+  });
+
   void it('정상 본문은 그대로 둔다', () => {
     const text = '성진님, 정말 대단하세요.\n\n오늘도 차근차근 해봐요.';
     assert.equal(sanitizeAssistantContent(text), text);
