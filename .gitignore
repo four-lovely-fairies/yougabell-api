@@ -46,6 +46,9 @@ coverage
 .idea
 .pnpm-store
 
+# OpenAPI export 산출물 (로컬 생성물). 정본은 yougabell-web/openapi/yougabell-api.json.
+openapi.json
+
 # Allow committing the env example
 !.env.example
 
