@@ -36,13 +36,20 @@ class ParentDto {
   @Length(1, 30)
   name!: string;
 
-  @ApiProperty({ example: '1990-01-01', description: 'ISO date (YYYY-MM-DD)' })
+  @ApiPropertyOptional({
+    type: String,
+    example: '1990-01-01',
+    description: 'ISO date (YYYY-MM-DD). 선택 입력 (App Store 5.1.1).',
+    nullable: true,
+  })
+  @IsOptional()
   @IsDateString()
-  birthDate!: string;
+  birthDate?: string | null;
 
-  @ApiProperty({ enum: ['female', 'male'] })
+  @ApiPropertyOptional({ enum: ['female', 'male'], nullable: true })
+  @IsOptional()
   @IsIn(['female', 'male'] satisfies Gender[])
-  gender!: Gender;
+  gender?: Gender | null;
 
   @ApiPropertyOptional({
     enum: ['working', 'full_time_caregiver'],

@@ -34,8 +34,8 @@ export class OnboardingService {
 
       const data = {
         name: dto.parent.name,
-        birthDate: new Date(dto.parent.birthDate),
-        gender: dto.parent.gender,
+        birthDate: dto.parent.birthDate ? new Date(dto.parent.birthDate) : null,
+        gender: dto.parent.gender ?? null,
         workStatus: dto.parent.workStatus ?? null,
         notificationSlot: dto.notification?.slot ?? null,
         notificationTime: dto.notification?.time ?? null,
