@@ -37,6 +37,7 @@ class ParentDto {
   name!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: '1990-01-01',
     description: 'ISO date (YYYY-MM-DD). 선택 입력 (App Store 5.1.1).',
     nullable: true,
