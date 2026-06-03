@@ -28,9 +28,7 @@ type DispatchPrisma = Pick<
 
 @Injectable()
 export class NotificationDispatchService {
-  constructor(
-    @Inject(PrismaService) private readonly prisma: DispatchPrisma,
-  ) {}
+  constructor(@Inject(PrismaService) private readonly prisma: DispatchPrisma) {}
 
   async dispatchPlayReminders(input: DispatchInput): Promise<DispatchResult> {
     const now = resolveNow(input.now);
