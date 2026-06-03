@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsRFC3339 } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsRFC3339,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class DispatchNotificationsDto {
   @ApiPropertyOptional({
@@ -17,4 +24,17 @@ export class DispatchNotificationsDto {
   @IsOptional()
   @IsBoolean()
   dryRun?: boolean;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description:
+      '현재 시각 기준 몇 분 전까지를 포함해 due time으로 볼지. 기본값 1',
+    minimum: 1,
+    maximum: 60,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  windowMinutes?: number;
 }

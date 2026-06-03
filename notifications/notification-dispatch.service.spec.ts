@@ -38,6 +38,55 @@ void describe('NotificationDispatchService', () => {
     assert.equal(createCalls.length, 1);
   });
 
+  void it('matches reminder times within the configured minute window', async () => {
+    const findManyCalls: unknown[] = [];
+    const service = new NotificationDispatchService({
+      notificationPreference: {
+        findMany: (args: unknown) => {
+          findManyCalls.push(args);
+          return Promise.resolve([]);
+        },
+      },
+      notification: {
+        findFirst: () => Promise.resolve(null),
+        create: () => Promise.resolve(null),
+      },
+      weeklyReport: {
+        findMany: () => Promise.resolve([]),
+      },
+    } as never);
+
+    await service.dispatchPlayReminders({
+      now: '2026-05-30T10:04:00.000Z',
+      windowMinutes: 5,
+    });
+
+    assert.deepEqual(findManyCalls, [
+      {
+        where: {
+          type: 'play_10min',
+          enabled: true,
+          time: { in: ['19:04', '19:03', '19:02', '19:01', '19:00'] },
+          user: {
+            deletedAt: null,
+            onboardedAt: { not: null },
+          },
+        },
+        include: {
+          user: {
+            select: {
+              children: {
+                where: { deletedAt: null },
+                orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+                select: { id: true, name: true },
+              },
+            },
+          },
+        },
+      },
+    ]);
+  });
+
   void it('creates monday weekly report notifications at the configured time', async () => {
     const createCalls: unknown[] = [];
     const service = new NotificationDispatchService({

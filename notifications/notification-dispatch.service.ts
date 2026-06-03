@@ -9,10 +9,12 @@ import {
 const SEOUL_OFFSET_MS = 9 * 60 * 60 * 1000;
 const PLAY_REMINDER_DEFAULT_TIME = '19:00';
 const WEEKLY_REPORT_DEFAULT_TIME = '12:00';
+const DEFAULT_WINDOW_MINUTES = 1;
 
 type DispatchInput = {
   now?: string;
   dryRun?: boolean;
+  windowMinutes?: number;
 };
 
 type DispatchResult = {
@@ -28,19 +30,20 @@ type DispatchPrisma = Pick<
 
 @Injectable()
 export class NotificationDispatchService {
-  constructor(
-    @Inject(PrismaService) private readonly prisma: DispatchPrisma,
-  ) {}
+  constructor(@Inject(PrismaService) private readonly prisma: DispatchPrisma) {}
 
   async dispatchPlayReminders(input: DispatchInput): Promise<DispatchResult> {
     const now = resolveNow(input.now);
-    const currentTime = toSeoulTime(now);
+    const currentTimes = getSeoulTimeWindow(
+      now,
+      resolveWindowMinutes(input.windowMinutes),
+    );
     const dayRange = getSeoulDayRange(now);
     const preferences = await this.prisma.notificationPreference.findMany({
       where: {
         type: 'play_10min',
         enabled: true,
-        time: currentTime,
+        time: { in: currentTimes },
         user: {
           deletedAt: null,
           onboardedAt: { not: null },
@@ -115,13 +118,16 @@ export class NotificationDispatchService {
       return { processed: 0, generated: 0, skipped: 0 };
     }
 
-    const currentTime = toSeoulTime(now);
+    const currentTimes = getSeoulTimeWindow(
+      now,
+      resolveWindowMinutes(input.windowMinutes),
+    );
     const weekStart = toDateOnly(getPreviousCompletedWeekStart(now));
     const preferences = await this.prisma.notificationPreference.findMany({
       where: {
         type: 'weekly_report',
         enabled: true,
-        time: currentTime,
+        time: { in: currentTimes },
         user: {
           deletedAt: null,
           onboardedAt: { not: null },
@@ -196,6 +202,24 @@ export function defaultNotificationTime(
 
 function resolveNow(now?: string): Date {
   return now ? new Date(now) : new Date();
+}
+
+function resolveWindowMinutes(windowMinutes?: number): number {
+  if (!windowMinutes || Number.isNaN(windowMinutes)) {
+    return DEFAULT_WINDOW_MINUTES;
+  }
+
+  return Math.max(1, Math.min(60, Math.trunc(windowMinutes)));
+}
+
+function getSeoulTimeWindow(date: Date, windowMinutes: number): string[] {
+  const times = new Set<string>();
+
+  for (let offset = 0; offset < windowMinutes; offset += 1) {
+    times.add(toSeoulTime(new Date(date.getTime() - offset * 60 * 1000)));
+  }
+
+  return [...times];
 }
 
 function toSeoulTime(date: Date): string {
