@@ -240,6 +240,89 @@ void describe('MissionsService', () => {
     assert.equal(result.activeExecution, null);
   });
 
+  const recommendChild = [
+    {
+      id: 'child-1',
+      userId: 'user-1',
+      name: '김유스',
+      birthDate: new Date('2023-04-20T00:00:00+09:00'),
+      displayOrder: 0,
+      createdAt: new Date('2026-05-01T00:00:00+09:00'),
+    },
+  ];
+  const recommendCandidates = [
+    {
+      id: 'm1',
+      title: 'A',
+      description: 'a',
+      subThemeLabel: null,
+      durationMinutes: 10,
+      category: { label: '언어발달' },
+      sources: [{ citation: 'CDC' }],
+    },
+    {
+      id: 'm2',
+      title: 'B',
+      description: 'b',
+      subThemeLabel: null,
+      durationMinutes: 10,
+      category: { label: '언어발달' },
+      sources: [],
+    },
+    {
+      id: 'm3',
+      title: 'C',
+      description: 'c',
+      subThemeLabel: null,
+      durationMinutes: 10,
+      category: { label: '언어발달' },
+      sources: [],
+    },
+  ];
+
+  void it('recommends the least-performed mission (lowest completion count)', async () => {
+    const prisma = createPrismaStub({
+      children: recommendChild,
+      milestones: [{ categoryId: 'language' }],
+      recommendCandidates,
+      // m1 2회, m3 1회, m2 0회 → 최저(0회)인 m2 추천
+      missionCounts: [
+        { missionId: 'm1', _count: { _all: 2 } },
+        { missionId: 'm3', _count: { _all: 1 } },
+      ],
+      currentDayExecution: null,
+      activeExecution: null,
+    });
+    const service = new MissionsService(prisma as never);
+
+    const result = await service.getCurrentMission('user-1', {});
+
+    assert.equal(result.mission.id, 'm2');
+    assert.equal(result.mission.status, 'not_started');
+  });
+
+  void it('allows repeats once every mission has equal performance count', async () => {
+    const prisma = createPrismaStub({
+      children: recommendChild,
+      milestones: [{ categoryId: 'language' }],
+      recommendCandidates,
+      // 모두 1회 → 최저 그룹 = 전체 → 그 안에서 로테이션(중복 허용)
+      missionCounts: [
+        { missionId: 'm1', _count: { _all: 1 } },
+        { missionId: 'm2', _count: { _all: 1 } },
+        { missionId: 'm3', _count: { _all: 1 } },
+      ],
+      currentDayExecution: null,
+      activeExecution: null,
+    });
+    const service = new MissionsService(prisma as never);
+
+    const result = await service.getCurrentMission('user-1', {});
+
+    assert.ok(['m1', 'm2', 'm3'].includes(result.mission.id));
+    assert.equal(result.mission.status, 'not_started');
+  });
+
   void it('reuses an existing active execution instead of creating a new one', async () => {
     const createCalls: unknown[] = [];
     const prisma = createPrismaStub({
@@ -502,6 +585,16 @@ function createPrismaStub(options: {
     category: { label: string };
     sources: Array<{ citation: string }>;
   } | null;
+  recommendCandidates?: Array<{
+    id: string;
+    title: string;
+    description: string;
+    subThemeLabel: string | null;
+    durationMinutes: number;
+    category: { label: string };
+    sources: Array<{ citation: string }>;
+  }>;
+  missionCounts?: Array<{ missionId: string; _count: { _all: number } }>;
   currentDayExecution?: {
     status: 'in_progress' | 'paused' | 'completed' | 'early_completed';
     mission: {
@@ -600,7 +693,10 @@ function createPrismaStub(options: {
       findMany: () => Promise.resolve(options.milestones ?? []),
     },
     mission: {
-      findMany: () => Promise.resolve(options.listedMissions ?? []),
+      findMany: () =>
+        Promise.resolve(
+          options.listedMissions ?? options.recommendCandidates ?? [],
+        ),
       findFirst: () => Promise.resolve(options.mission ?? null),
       findUnique: () => Promise.resolve(options.missionById ?? null),
       create: (args: unknown) => {
@@ -637,6 +733,7 @@ function createPrismaStub(options: {
 
         return Promise.resolve(options.executionForAction ?? null);
       },
+      groupBy: () => Promise.resolve(options.missionCounts ?? []),
       create: (args: unknown) => {
         options.onCreate?.(args);
         return Promise.resolve(options.activeExecution);
