@@ -97,6 +97,8 @@ export function createPrismaStub(options: {
     sources: Array<{ citation: string }>;
   }>;
   missionCounts?: Array<{ missionId: string; _count: { _all: number } }>;
+  // 미션 카탈로그의 추천 월령 경계 (clampAgeToMissionCatalog 검증용). 미지정 시 null = 클램프 없음.
+  missionAgeBounds?: { min: number | null; max: number | null };
   currentDayExecution?: {
     status: 'in_progress' | 'paused' | 'completed' | 'early_completed';
     mission: {
@@ -199,6 +201,15 @@ export function createPrismaStub(options: {
         Promise.resolve(
           options.listedMissions ?? options.recommendCandidates ?? [],
         ),
+      aggregate: () =>
+        Promise.resolve({
+          _min: {
+            recommendedAgeMonthsMin: options.missionAgeBounds?.min ?? null,
+          },
+          _max: {
+            recommendedAgeMonthsMax: options.missionAgeBounds?.max ?? null,
+          },
+        }),
       findFirst: () => Promise.resolve(options.mission ?? null),
       findUnique: () => Promise.resolve(options.missionById ?? null),
       create: (args: unknown) => {

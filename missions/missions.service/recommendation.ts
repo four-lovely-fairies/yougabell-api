@@ -19,10 +19,14 @@ export async function findRecommendedMission(
   ageMonths: number,
   today: Date,
 ): Promise<CurrentMissionRow | null> {
+  // 카탈로그가 커버하는 추천 월령 범위를 벗어난 아이(예: 시드 상한을 넘는 고월령)는
+  // 가장 가까운 경계 월령대로 클램프해 추천한다. 범위 안이면 그대로 사용.
+  const effectiveAge = await clampAgeToMissionCatalog(prisma, ageMonths);
+
   const milestones = await prisma.milestone.findMany({
     where: {
-      ageMonthsFrom: { lte: ageMonths },
-      ageMonthsTo: { gte: ageMonths },
+      ageMonthsFrom: { lte: effectiveAge },
+      ageMonthsTo: { gte: effectiveAge },
     },
     select: { categoryId: true },
     orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
@@ -36,13 +40,13 @@ export async function findRecommendedMission(
       ...(categoryIds.length > 0 ? { categoryId: { in: categoryIds } } : {}),
       OR: [
         { recommendedAgeMonthsMin: null },
-        { recommendedAgeMonthsMin: { lte: ageMonths } },
+        { recommendedAgeMonthsMin: { lte: effectiveAge } },
       ],
       AND: [
         {
           OR: [
             { recommendedAgeMonthsMax: null },
-            { recommendedAgeMonthsMax: { gte: ageMonths } },
+            { recommendedAgeMonthsMax: { gte: effectiveAge } },
           ],
         },
       ],
@@ -136,6 +140,31 @@ export async function findCurrentMission(
     mission,
     status: 'not_started',
   };
+}
+
+// 미션 카탈로그가 커버하는 추천 월령 범위로 입력 월령을 클램프한다.
+// 범위를 벗어나면 가장 가까운 경계(최저/최고 band)로 당겨, 더미가 아니라
+// 가장 가까운 월령대의 실제 미션을 추천하도록 한다. (open-ended band가 있으면
+// 애초에 후보가 잡히므로 클램프는 양 끝이 모두 bounded일 때만 의미를 가진다.)
+export async function clampAgeToMissionCatalog(
+  prisma: PrismaService,
+  ageMonths: number,
+): Promise<number> {
+  const bounds = await prisma.mission.aggregate({
+    _min: { recommendedAgeMonthsMin: true },
+    _max: { recommendedAgeMonthsMax: true },
+  });
+  const min = bounds._min.recommendedAgeMonthsMin;
+  const max = bounds._max.recommendedAgeMonthsMax;
+
+  let clamped = ageMonths;
+  if (min != null && clamped < min) {
+    clamped = min;
+  }
+  if (max != null && clamped > max) {
+    clamped = max;
+  }
+  return clamped;
 }
 
 // 문자열 시드 → [0, length) 결정적 인덱스 (날짜·아이 기준 미션 로테이션용).
