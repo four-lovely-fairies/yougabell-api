@@ -35,6 +35,32 @@ void describe('sanitizeAssistantContent', () => {
     assert.equal(out, '오늘도 충분히 잘하고 계세요.');
   });
 
+  void it('본문 맨 앞에서 시작하는 cards 블록 전체를 제거한다', () => {
+    const out = sanitizeAssistantContent(
+      'cards:\n  - type: info\n    title: 떼쓰는 아이 다루기 원칙\n    items:\n      - 차분하게 반응하기',
+    );
+    assert.equal(out, '');
+  });
+
+  void it('items: 로 시작하는 누출 줄도 제거한다', () => {
+    const out = sanitizeAssistantContent(
+      '오늘도 고생하셨어요.\n\nitems:\n  - 충분한 수면',
+    );
+    assert.equal(out, '오늘도 고생하셨어요.');
+  });
+
+  void it('리스트 마커가 붙은 "- type:"·"- title:" 누출 줄도 제거한다', () => {
+    const out = sanitizeAssistantContent(
+      '차분히 안아주세요.\n- type: info\n- title: 가이드\n  items:\n  - 수면',
+    );
+    assert.equal(out, '차분히 안아주세요.');
+  });
+
+  void it('한글 콜론 표현은 그대로 둔다', () => {
+    const text = '정리하면 다음과 같아요: 첫째 차분히, 둘째 일관되게.';
+    assert.equal(sanitizeAssistantContent(text), text);
+  });
+
   void it('코드펜스 마커는 걷어내고 안의 텍스트는 남긴다', () => {
     const out = sanitizeAssistantContent(
       '차분히 안아주세요.\n```\n괜찮아요\n```',
