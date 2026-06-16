@@ -353,7 +353,7 @@ export function sanitizeAssistantContent(raw: string): string {
   // 카드 항목 키 `items:`도 마커에 포함한다. 카드는 별도로 추출·렌더되므로
   // 본문에서는 누출만 걷어내며, 블록이 본문 전체면 빈 본문이 된다.
   text = text.replace(
-    /(?:^|\n)[ \t]*(?:cards|type|content|items)[ \t]*:[\s\S]*$/i,
+    /(?:^|\n)[ \t]*-?[ \t]*(?:cards|type|title|content|items)[ \t]*:[\s\S]*$/i,
     '',
   );
   // 코드펜스 마커만 제거 (내용 보존). 챗 본문은 코드블록을 쓰지 않음.
