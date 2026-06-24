@@ -1,16 +1,17 @@
 /**
  * CSV → DB 일회성 임포트 스크립트.
  *
- * 입력 위치: umbrella(`yougabell/docs/seed-data/`)에 놓인 다음 5개 파일.
+ * 입력 위치: umbrella(`yougabell/docs/seed-data/`)에 놓인 다음 2개 파일.
  *   - [youth] 워킹맘 MVP 데이터 가공 - 마일스톤 데이터.csv
- *   - [youth] 워킹맘 MVP 데이터 가공 - 손서현_미션데이터.csv
- *   - [youth] 워킹맘 MVP 데이터 가공 - 오유현_미션데이터.csv
- *   - [youth] 워킹맘 MVP 데이터 가공 - 김성훈_미션 데이터(30개월~5년).csv
+ *   - [youth] 워킹맘 MVP 데이터 가공 - 미션 데이터.csv   ← 통합본(유일한 미션 소스)
+ *
+ * ※ 개별 운영자 시트(손서현/오유현/김성훈)는 통합본으로 흡수됨 → 참조용 보관, import 안 함.
+ *   개별 + 통합 동시 적재가 과거 945 중복의 원인이었음 (docs/seed-data/README.md 참조).
  *
  * 1. wipe (mission + milestone deleteMany — cascade로 sources/tags 정리)
  * 2. MilestoneCategory 4종(social/language/cognitive/physical) upsert — CDC Act Early 발달 영역 (docs/features/20260523-roadmap.md)
  * 3. 마일스톤 wide → long 변환 + 카테고리별 인접 시점 cover (ageMonthsFrom = 직전 시점)
- * 4. 미션 3개 파일 → Mission + MissionSource insert (운영자별 시트 컬럼 매핑 다름)
+ * 4. 통합본 미션 → Mission + MissionSource insert
  *
  * 실행 (워크스페이스 루트에서):
  *   `cd yougabell-api && pnpm exec ts-node scripts/import-csv-data.ts`
@@ -386,44 +387,10 @@ async function main() {
   await seedGrowthStages();
   await importMilestones();
 
-  // 손서현 — 헤더 idx 2: 아이개월수=0, 태그=1, 시간=2, 키워드=3, 미션=4, 효과=5, 출처=6
-  await importMissionsFile(
-    '[youth] 워킹맘 MVP 데이터 가공 - 손서현_미션데이터.csv',
-    2,
-    {
-      ageIdx: 0,
-      tagIdx: 1,
-      durIdx: 2,
-      shortIdx: 3,
-      descIdx: 4,
-      effectIdx: 5,
-      srcIdx: 6,
-    },
-    '손서현',
-  );
-
-  // 오유현 — 헤더 idx 6: 아이나이=0, 목표=1, 시간=2, 미션요약=3, 미션상세=4, 효과=5, 카테고리=6, 출처=7
-  // (v2 — 모든 컬럼이 1만큼 시프트됨. goalIdx가 1번 자리로 이동)
-  await importMissionsFile(
-    '[youth] 워킹맘 MVP 데이터 가공 - 오유현_미션데이터.csv',
-    6,
-    {
-      ageIdx: 0,
-      goalIdx: 1,
-      durIdx: 2,
-      shortIdx: 3,
-      descIdx: 4,
-      effectIdx: 5,
-      tagIdx: 6,
-      srcIdx: 7,
-    },
-    '오유현',
-  );
-
-  // 통합 미션 데이터 — 신규 (v2). 헤더 idx 2 (실제 헤더 위치).
-  // 헤더: 아이나이=0, 목표=1, 시간=2, 미션요약=3, 미션상세=4, 효과=5, 카테고리=6, 출처=7
-  // ⚠ 과거 5로 잘못 지정해 상단 미션 3개(들어 올려 달래기/눈 맞춤 게임/다가가서 인사하기)가
-  //   누락됐었음 → 2로 교정 (480건 전량 적재).
+  // 통합 미션 데이터 — 유일한 미션 소스 (구글 시트 480).
+  // 개별 운영자 시트(손서현/오유현/김성훈)는 이 통합본으로 흡수됨 → 참조용으로만 보관, import 안 함.
+  //   (개별 + 통합 동시 적재가 과거 945 중복의 원인. docs/seed-data/README.md 참조.)
+  // 헤더 idx 2 (실제 헤더 위치): 아이나이=0, 목표=1, 시간=2, 미션요약=3, 미션상세=4, 효과=5, 카테고리=6, 출처=7
   await importMissionsFile(
     '[youth] 워킹맘 MVP 데이터 가공 - 미션 데이터.csv',
     2,
@@ -440,24 +407,7 @@ async function main() {
     '통합 미션',
   );
 
-  // 김성훈 — 헤더 idx 7: 아이나이=0, 목표=1, 부모유형=2, 시간=3, 키워드=4, 미션=5, 효과=6, 태그=7, 출처=8
-  await importMissionsFile(
-    '[youth] 워킹맘 MVP 데이터 가공 - 김성훈_미션 데이터(30개월~5년).csv',
-    7,
-    {
-      ageIdx: 0,
-      goalIdx: 1,
-      durIdx: 3,
-      shortIdx: 4,
-      descIdx: 5,
-      effectIdx: 6,
-      tagIdx: 7,
-      srcIdx: 8,
-    },
-    '김성훈',
-  );
-
-  // 모든 mission file import 완료 후, 카테고리별 인접 시점 cover로 min 보정.
+  // mission import 완료 후, 카테고리별 인접 시점 cover로 min 보정.
   // 단일 시점만 cover하면 5·7·8개월 등 비-체크포인트 사용자에게 미션 0건 매칭됨.
   await postProcessMissionRanges();
 
