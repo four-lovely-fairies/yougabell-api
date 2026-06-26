@@ -3,7 +3,7 @@
  *
  * 입력 위치: umbrella(`yougabell/docs/seed-data/`)에 놓인 다음 2개 파일.
  *   - [youth] 워킹맘 MVP 데이터 가공 - 마일스톤 데이터.csv
- *   - [youth] 워킹맘 MVP 데이터 가공 - 미션 데이터.csv   ← 통합본(유일한 미션 소스)
+ *   - [youth] 워킹맘 MVP 데이터 가공 - 미션 데이터.csv   ← 통합본(유일한 놀이 소스)
  *
  * ※ 개별 운영자 시트(손서현/오유현/김성훈)는 통합본으로 흡수됨 → 참조용 보관, import 안 함.
  *   개별 + 통합 동시 적재가 과거 945 중복의 원인이었음 (docs/seed-data/README.md 참조).
@@ -11,7 +11,7 @@
  * 1. wipe (mission + milestone deleteMany — cascade로 sources/tags 정리)
  * 2. MilestoneCategory 4종(social/language/cognitive/physical) upsert — CDC Act Early 발달 영역 (docs/features/20260523-roadmap.md)
  * 3. 마일스톤 wide → long 변환 + 카테고리별 인접 시점 cover (ageMonthsFrom = 직전 시점)
- * 4. 통합본 미션 → Mission + MissionSource insert
+ * 4. 통합본 놀이 → Mission + MissionSource insert
  *
  * 실행 (워크스페이스 루트에서):
  *   `cd yougabell-api && pnpm exec ts-node scripts/import-csv-data.ts`
@@ -338,7 +338,7 @@ async function importMissionsFile(
  *   - max=6 → min=4  (4·5·6)
  *   ...
  *
- * 이로써 5·7·8·10·11·13·14개월 등 비-체크포인트 사용자도 미션 매칭됨.
+ * 이로써 5·7·8·10·11·13·14개월 등 비-체크포인트 사용자도 놀이 매칭됨.
  */
 async function postProcessMissionRanges() {
   const categories = await prisma.mission.findMany({
@@ -387,10 +387,10 @@ async function main() {
   await seedGrowthStages();
   await importMilestones();
 
-  // 통합 미션 데이터 — 유일한 미션 소스 (구글 시트 480).
+  // 통합 놀이 데이터 — 유일한 놀이 소스 (구글 시트 480).
   // 개별 운영자 시트(손서현/오유현/김성훈)는 이 통합본으로 흡수됨 → 참조용으로만 보관, import 안 함.
   //   (개별 + 통합 동시 적재가 과거 945 중복의 원인. docs/seed-data/README.md 참조.)
-  // 헤더 idx 2 (실제 헤더 위치): 아이나이=0, 목표=1, 시간=2, 미션요약=3, 미션상세=4, 효과=5, 카테고리=6, 출처=7
+  // 헤더: 아이나이=0, 목표=1, 시간=2, 놀이요약=3, 놀이상세=4, 효과=5, 카테고리=6, 출처=7
   await importMissionsFile(
     '[youth] 워킹맘 MVP 데이터 가공 - 미션 데이터.csv',
     2,
@@ -404,11 +404,11 @@ async function main() {
       tagIdx: 6,
       srcIdx: 7,
     },
-    '통합 미션',
+    '통합 놀이',
   );
 
-  // mission import 완료 후, 카테고리별 인접 시점 cover로 min 보정.
-  // 단일 시점만 cover하면 5·7·8개월 등 비-체크포인트 사용자에게 미션 0건 매칭됨.
+  // 놀이 import 완료 후, 카테고리별 인접 시점 cover로 min 보정.
+  // 단일 시점만 cover하면 5·7·8개월 등 비-체크포인트 사용자에게 놀이 0건 매칭됨.
   await postProcessMissionRanges();
 
   console.log('===== done =====');

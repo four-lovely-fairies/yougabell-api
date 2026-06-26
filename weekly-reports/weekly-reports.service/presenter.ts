@@ -49,7 +49,7 @@ export function toDetail(report: WeeklyReportRecord): WeeklyReportDetail {
         : {
             title: '아직 키워드가 충분하지 않아요',
             description:
-              '미션 후 피드백에서 아이가 자주 말한 단어를 남겨보세요. 다음 리포트에서 아이의 관심사가 더 선명하게 보여요.',
+              '놀이 후 피드백에서 아이가 자주 말한 단어를 남겨보세요. 다음 리포트에서 아이의 관심사가 더 선명하게 보여요.',
           },
     bestMoments: report.bestMoments
       .slice()

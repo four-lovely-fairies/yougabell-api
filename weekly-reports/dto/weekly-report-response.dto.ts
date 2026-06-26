@@ -29,8 +29,8 @@ export class WeeklyReportEmptyStateDto {
   @ApiProperty()
   description!: string;
 
-  @ApiProperty({ example: '미션 시작하기' })
-  ctaLabel!: '미션 시작하기';
+  @ApiProperty({ example: '놀이 시작하기' })
+  ctaLabel!: '놀이 시작하기';
 
   @ApiProperty({ example: '/mission' })
   ctaHref!: '/mission';

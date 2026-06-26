@@ -1,24 +1,24 @@
 /**
- * 미션 데이터를 통합본(구글 시트 480)에 맞춰 정리하는 일회성 스크립트.
+ * 놀이 데이터를 통합본(구글 시트 480)에 맞춰 정리하는 일회성 스크립트.
  *
  * 배경:
  *   - import-csv-data.ts가 통합 파일을 headerRowIdx=5(오류, 실제 헤더는 row 2)로 읽어
- *     상단 미션 3개(들어 올려 달래기 / 눈 맞춤 게임 / 다가가서 인사하기)를 건너뜀 → 477만 적재.
+ *     상단 놀이 3개(들어 올려 달래기 / 눈 맞춤 게임 / 다가가서 인사하기)를 건너뜀 → 477만 적재.
  *   - 게다가 개별 운영자 시트(손서현/오유현/김성훈) 468행이 통합본과 별개로 적재됨 → 총 945.
  *
  * 목표 (사용자 확정):
  *   1. 누락 3개를 추가해 통합본 480을 완성.
  *   2. MissionExecution 45건 중 통합본에 깔끔히 연결되는 32건만 보존:
- *      - 16건 이미 통합본(유지) + 16건 동일 미션(twin → 통합본으로 repoint).
+ *      - 16건 이미 통합본(유지) + 16건 동일 놀이(twin → 통합본으로 repoint).
  *   3. 통합본에 대응이 없는 개별-전용 실행 13건은 전부 삭제 — 전수 확인 결과
  *      hitedin/emmajenny0426 등 테스터 계정이거나 30초 미만 중도종료 노이즈.
  *      (딸린 MissionFeedback/Keyword는 cascade 정리)
- *   4. 개별 미션 468행 삭제 → 최종 480개.
+ *   4. 개별 놀이 468행 삭제 → 최종 480개.
  *
  * 안전장치:
  *   - 기본 DRY_RUN: 트랜잭션 안에서 전부 수행 후 의도적으로 롤백, 변경 예정 내역만 출력.
  *   - 실제 반영: DRY_RUN=false 환경변수.
- *   - 삭제 대상 미션을 가리키는 실행 잔존 시 즉시 중단(throw).
+ *   - 삭제 대상 놀이를 가리키는 실행 잔존 시 즉시 중단(throw).
  *
  * 실행 (워크스페이스 루트 또는 yougabell-api에서):
  *   dry-run:  cd yougabell-api && pnpm exec ts-node scripts/conform-missions-to-480.ts
@@ -91,14 +91,14 @@ async function run() {
     `===== conform-missions-to-480 (${DRY_RUN ? 'DRY-RUN' : '실제 반영'}) =====`,
   );
 
-  // 0. 스냅샷: 현재 미션을 createdAt 순으로 읽어 canonical(통합) 블록 식별
+  // 0. 스냅샷: 현재 놀이를 createdAt 순으로 읽어 canonical(통합) 블록 식별
   const all = await prisma.mission.findMany({
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     select: { id: true, shortTitle: true, categoryId: true },
   });
   if (all.length !== 945) {
     console.warn(
-      `⚠ 현재 미션 수가 945가 아님(${all.length}). 블록 경계 가정이 어긋날 수 있어 중단.`,
+      `⚠ 현재 놀이 수가 945가 아님(${all.length}). 블록 경계 가정이 어긋날 수 있어 중단.`,
     );
     if (all.length !== 945)
       throw new Error(`unexpected mission count: ${all.length}`);
@@ -113,7 +113,7 @@ async function run() {
   );
 
   await prisma.$transaction(async (tx) => {
-    // 1. 누락 미션 추가 — 통합 CSV(헤더 row 2)에서 canonicalKey에 없는 행을 삽입
+    // 1. 누락 놀이 추가 — 통합 CSV(헤더 row 2)에서 canonicalKey에 없는 행을 삽입
     const rows = parse(readFileSync(CSV_PATH, 'utf-8'), {
       skip_empty_lines: false,
       relax_column_count: true,
@@ -155,7 +155,7 @@ async function run() {
       canonicalKey.set(keyOf(short, cat), created.id); // survivor key에 편입
     }
     console.log(
-      `\n[1] 추가된 미션: ${addedIds.length} → ${addedTitles.join(', ')}`,
+      `\n[1] 추가된 놀이: ${addedIds.length} → ${addedTitles.join(', ')}`,
     );
 
     // survivor 집합 = canonical(477) + 신규(3)
@@ -178,7 +178,7 @@ async function run() {
         keepAsIs++; // 이미 통합본
         continue;
       }
-      // 동일 미션이 통합본에 있음(twin) 또는 신규 추가분과 일치 → repoint
+      // 동일 놀이가 통합본에 있음(twin) 또는 신규 추가분과 일치 → repoint
       const toId = canonicalKey.get(
         keyOf(e.mission.shortTitle, e.mission.categoryId),
       );
@@ -197,7 +197,7 @@ async function run() {
 
     console.log(`\n[2] 실행 ${execs.length}건 분류:`);
     console.log(`    - 유지(이미 통합본): ${keepAsIs}`);
-    console.log(`    - twin repoint(동일 미션): ${repoints.length}`);
+    console.log(`    - twin repoint(동일 놀이): ${repoints.length}`);
     console.log(
       `    - 삭제(개별-전용 노이즈): ${deleteExecIds.length} (+피드백 ${fbToDelete} cascade)`,
     );
@@ -213,24 +213,24 @@ async function run() {
     });
     console.log(`    → 삭제 실행: ${delExec.count}`);
 
-    // 3. survivor 외 미션(개별 468) 삭제 — 실행은 이미 전부 옮겨짐
+    // 3. survivor 외 놀이(개별 468) 삭제 — 실행은 이미 전부 옮겨짐
     const toDelete = all.filter((m) => !survivorIds.has(m.id)).map((m) => m.id);
-    // 안전 확인: 삭제 대상 미션을 아직 가리키는 실행이 없어야 함
+    // 안전 확인: 삭제 대상 놀이를 아직 가리키는 실행이 없어야 함
     const stillRef = await tx.missionExecution.count({
       where: { missionId: { in: toDelete } },
     });
     if (stillRef > 0)
       throw new Error(
-        `삭제 대상 미션을 가리키는 실행 ${stillRef}건 잔존 — 중단`,
+        `삭제 대상 놀이를 가리키는 실행 ${stillRef}건 잔존 — 중단`,
       );
 
     const del = await tx.mission.deleteMany({
       where: { id: { in: toDelete } },
     });
-    console.log(`\n[3] 개별 미션 삭제: ${del.count}`);
+    console.log(`\n[3] 개별 놀이 삭제: ${del.count}`);
 
     const finalCount = await tx.mission.count();
-    console.log(`\n최종 미션 수: ${finalCount} (기대: 480)`);
+    console.log(`\n최종 놀이 수: ${finalCount} (기대: 480)`);
     const finalExecs = await tx.missionExecution.count();
     console.log(
       `최종 실행 수: ${finalExecs} (기대: 32 = 유지 16 + repoint 16, 삭제 13)`,

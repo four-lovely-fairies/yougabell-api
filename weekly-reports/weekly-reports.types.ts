@@ -14,7 +14,7 @@ export type WeeklyReportCurrentResponse = {
       | 'report_generation_pending';
     title: string;
     description: string;
-    ctaLabel: '미션 시작하기';
+    ctaLabel: '놀이 시작하기';
     ctaHref: '/mission';
   };
 };
