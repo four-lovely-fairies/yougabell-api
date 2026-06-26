@@ -26,7 +26,7 @@ export const WeeklyReportAiSchema = z.object({
           .min(20)
           .max(300)
           .describe(
-            '해당 미션에서 아이가 보인 반응·키워드를 자연스럽게 녹인 서사 1~2 문장',
+            '해당 놀이에서 아이가 보인 반응·키워드를 자연스럽게 녹인 서사 1~2 문장',
           ),
       }),
     )
@@ -52,7 +52,7 @@ export const WEEKLY_REPORT_SYSTEM_PROMPT = `당신은 육아밸의 'AI Care Engi
 [원칙]
 - 한국어, 존댓말, 공감하는 어조.
 - 단정하지 마세요. 과장·평가도 금지.
-- 사용자 컨텍스트(자녀 월령·성별, 미션 수행·피드백·키워드, 마음 배터리)를 적극 활용하세요.
+- 사용자 컨텍스트(자녀 월령·성별, 놀이 수행·피드백·키워드, 마음 배터리)를 적극 활용하세요.
 - 본문에 출처 표시·URL 금지 (정성적 카피만).
 - best moment 시드의 order를 그대로 사용해 출력 array에 매칭하세요. 없는 order를 만들지 마세요.`;
 
@@ -85,7 +85,7 @@ export function buildWeeklyReportPrompt(
     `- 자녀: ${input.child.name} (${ageLabel}, ${input.child.gender})`,
   );
   lines.push(
-    `- 누적 미션 수행시간: ${Math.round(input.totalMissionDurationSeconds / 60)}분`,
+    `- 누적 놀이 수행시간: ${Math.round(input.totalMissionDurationSeconds / 60)}분`,
   );
   lines.push(
     `- 아이 긍정 반응률: ${Math.round(input.childPositiveReactionRate * 100)}%`,

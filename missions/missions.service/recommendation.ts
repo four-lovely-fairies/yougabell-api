@@ -7,8 +7,8 @@ import {
   CurrentMissionStatus,
 } from './selects';
 
-// 오늘의 추천 미션 선정.
-// 1) 아이 월령·카테고리·추천연령에 맞는 후보 미션 전체를 모은다.
+// 오늘의 추천 놀이 선정.
+// 1) 아이 월령·카테고리·추천연령에 맞는 후보 놀이 전체를 모은다.
 // 2) 아이별 수행(완료) 횟수를 집계해, **최저 횟수 그룹**만 후보로 남긴다.
 //    (0회 우선 → 모두 1회가 되면 1회끼리 → … 최저 숫자 기준으로 균등 소진/로테이션.)
 // 3) 같은 그룹 안에서는 서울 날짜 + 아이 id 해시로 결정적 1개 선택 → 같은 날엔 동일,
@@ -59,7 +59,7 @@ export async function findRecommendedMission(
     return null;
   }
 
-  // 아이별 미션 수행(완료) 횟수 집계.
+  // 아이별 놀이 수행(완료) 횟수 집계.
   const counts = await prisma.missionExecution.groupBy({
     by: ['missionId'],
     where: {
@@ -142,9 +142,9 @@ export async function findCurrentMission(
   };
 }
 
-// 미션 카탈로그가 커버하는 추천 월령 범위로 입력 월령을 클램프한다.
+// 놀이 카탈로그가 커버하는 추천 월령 범위로 입력 월령을 클램프한다.
 // 범위를 벗어나면 가장 가까운 경계(최저/최고 band)로 당겨, 더미가 아니라
-// 가장 가까운 월령대의 실제 미션을 추천하도록 한다. (open-ended band가 있으면
+// 가장 가까운 월령대의 실제 놀이를 추천하도록 한다. (open-ended band가 있으면
 // 애초에 후보가 잡히므로 클램프는 양 끝이 모두 bounded일 때만 의미를 가진다.)
 export async function clampAgeToMissionCatalog(
   prisma: PrismaService,
@@ -167,7 +167,7 @@ export async function clampAgeToMissionCatalog(
   return clamped;
 }
 
-// 문자열 시드 → [0, length) 결정적 인덱스 (날짜·아이 기준 미션 로테이션용).
+// 문자열 시드 → [0, length) 결정적 인덱스 (날짜·아이 기준 놀이 로테이션용).
 function hashToIndex(seed: string, length: number): number {
   if (length <= 0) {
     return 0;

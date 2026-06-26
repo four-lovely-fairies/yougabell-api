@@ -222,7 +222,7 @@ export class ListMissionsQueryDto {
   @ApiPropertyOptional({
     minimum: 0,
     description:
-      '월령 N이 [recommendedAgeMonthsMin, recommendedAgeMonthsMax] 안인 미션만',
+      '월령 N이 [recommendedAgeMonthsMin, recommendedAgeMonthsMax] 안인 놀이만',
   })
   @IsOptional()
   @IsInt()

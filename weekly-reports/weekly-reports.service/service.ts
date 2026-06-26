@@ -315,8 +315,8 @@ export class WeeklyReportsService {
         reason: 'no_mission_yet',
         title: '아직 주간 리포트가 없습니다',
         description:
-          '미션을 수행하고 아이와의 소중한 순간을 기록해보세요. 일주일 후 첫 리포트를 확인할 수 있습니다.',
-        ctaLabel: '미션 시작하기',
+          '놀이를 수행하고 아이와의 소중한 순간을 기록해보세요. 일주일 후 첫 리포트를 확인할 수 있습니다.',
+        ctaLabel: '놀이 시작하기',
         ctaHref: '/mission',
       };
     }
@@ -340,7 +340,7 @@ export class WeeklyReportsService {
         reason: 'report_generation_pending',
         title: '리포트를 준비 중이에요',
         description: '준비가 완료되면 적당한 시간에 알림으로 알려드릴게요.',
-        ctaLabel: '미션 시작하기',
+        ctaLabel: '놀이 시작하기',
         ctaHref: '/mission',
       };
     }
@@ -349,8 +349,8 @@ export class WeeklyReportsService {
       reason: 'no_mission_for_week',
       title: '아직 주간 리포트가 없습니다',
       description:
-        '지난주에는 리포트로 만들 기록이 없었어요. 이번 주 미션을 시작해보세요.',
-      ctaLabel: '미션 시작하기',
+        '지난주에는 리포트로 만들 기록이 없었어요. 이번 주 놀이를 시작해보세요.',
+      ctaLabel: '놀이 시작하기',
       ctaHref: '/mission',
     };
   }

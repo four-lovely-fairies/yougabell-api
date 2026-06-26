@@ -78,7 +78,7 @@ model NotificationPreference {
 }
 
 enum NotificationPreferenceType {
-  play_10min // 10분 놀이 알림 (미션 알림 — 기존 notificationSlot/Time)
+  play_10min // 10분 놀이 알림 (놀이 알림 — 기존 notificationSlot/Time)
   weekly_report // 주간 리포트 알림
 }
 

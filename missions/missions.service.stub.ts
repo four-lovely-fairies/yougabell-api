@@ -97,7 +97,7 @@ export function createPrismaStub(options: {
     sources: Array<{ citation: string }>;
   }>;
   missionCounts?: Array<{ missionId: string; _count: { _all: number } }>;
-  // 미션 카탈로그의 추천 월령 경계 (clampAgeToMissionCatalog 검증용). 미지정 시 null = 클램프 없음.
+  // 놀이 카탈로그의 추천 월령 경계 (clampAgeToMissionCatalog 검증용). 미지정 시 null = 클램프 없음.
   missionAgeBounds?: { min: number | null; max: number | null };
   currentDayExecution?: {
     status: 'in_progress' | 'paused' | 'completed' | 'early_completed';

@@ -13,7 +13,7 @@ const SYSTEM_BASE = `당신은 육아밸이 제공하는 양육 코치입니다.
 [원칙]
 - 한국어로 답하세요. 존댓말, 공감하는 어조.
 - 단정·강요하지 마세요. 부모의 자율성을 존중하세요.
-- 사용자 맥락(아이 월령·성별·특이사항, 최근 미션 수행, 마음 배터리, 지난 주간 리포트)을 적극 활용하세요.
+- 사용자 맥락(아이 월령·성별·특이사항, 최근 놀이 수행, 마음 배터리, 지난 주간 리포트)을 적극 활용하세요.
 - 자신이나 서비스를 'AI Care Engine' 같은 영문 엔진·모델 이름으로 부르지 마세요. 근거·자료를 언급할 땐 "육아밸이 제공하는 자료" 정도로만 표현하세요.
 
 [지식 베이스 인용 규칙]
@@ -62,7 +62,7 @@ export function buildChatSystemPrompt(
   }
 
   if (context.recentMissions.length > 0) {
-    lines.push(`- 최근 ${context.recentMissions.length}건 미션 수행:`);
+    lines.push(`- 최근 ${context.recentMissions.length}건 놀이 수행:`);
     for (const mission of context.recentMissions.slice(0, 5)) {
       const reaction = mission.feedback?.childReaction;
       const reactionLabel =
