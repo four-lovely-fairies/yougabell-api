@@ -27,7 +27,7 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('Yougabell API')
-    .setDescription('육아밸 domain API')
+    .setDescription('육아벨 domain API')
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();

@@ -1,6 +1,6 @@
 # yougabell-api
 
-육아밸의 백엔드. 사용자가 입력한 아이 정보(연령, 발달 단계, 알레르기 등)를 들고 있다가, 챗봇이 답할 때 그 맥락을 끌어다 쓰는 게 핵심이다. 도메인 데이터의 진실의 소스이자, 클라이언트 셋(web/admin/mobile)이 바라보는 단 하나의 API.
+육아벨의 백엔드. 사용자가 입력한 아이 정보(연령, 발달 단계, 알레르기 등)를 들고 있다가, 챗봇이 답할 때 그 맥락을 끌어다 쓰는 게 핵심이다. 도메인 데이터의 진실의 소스이자, 클라이언트 셋(web/admin/mobile)이 바라보는 단 하나의 API.
 
 NestJS로 짜여 있고, Prisma로 Supabase Postgres를 다룬다. LLM은 Vercel AI SDK를 통해 Google Gemini를 호출한다.
 

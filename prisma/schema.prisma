@@ -1,4 +1,4 @@
-// 육아밸 — domain schema
+// 육아벨 — domain schema
 // Source: ../docs/schema/01..11
 // Convention: tables-only (no JSON columns) except MessageCard.actionPayload (polymorphic)
 // IDs: UUID v4 (User.id matches Supabase auth.users.id — not auto-generated)
