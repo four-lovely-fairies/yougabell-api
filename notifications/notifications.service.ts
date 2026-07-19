@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpsertPushTokenDto } from './dto/push-token.dto';
 import {
   NotificationListItem,
   NotificationListResponse,
@@ -66,6 +67,43 @@ export class NotificationsService {
     });
 
     return { updatedCount: result.count };
+  }
+
+  async upsertPushToken(
+    userId: string,
+    dto: UpsertPushTokenDto,
+  ): Promise<{ ok: true }> {
+    await this.prisma.userPushToken.upsert({
+      where: {
+        userId_deviceId: {
+          userId,
+          deviceId: dto.deviceId,
+        },
+      },
+      create: {
+        userId,
+        deviceId: dto.deviceId,
+        token: dto.token,
+        platform: dto.platform,
+      },
+      update: {
+        token: dto.token,
+        platform: dto.platform,
+      },
+    });
+
+    return { ok: true };
+  }
+
+  async deletePushToken(
+    userId: string,
+    deviceId: string,
+  ): Promise<{ deletedCount: number }> {
+    const result = await this.prisma.userPushToken.deleteMany({
+      where: { userId, deviceId },
+    });
+
+    return { deletedCount: result.count };
   }
 }
 

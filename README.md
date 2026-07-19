@@ -79,6 +79,20 @@ pnpm start:dev            # :3000
 pnpm openapi:export       # openapi.json 갱신
 ```
 
+## 푸시 알림
+
+푸시는 Expo Push Service로 보낸다. mobile이 OS 알림 권한 승인 후 Expo push
+token을 받아 `/notifications/push-tokens`에 등록하고, API는 알림 인박스 row를
+생성한 직후 같은 title/body/data를 Expo Push API로 전송한다.
+
+운영 설정:
+
+- Render 환경변수에 `NOTIFICATION_CRON_SECRET`을 설정한다.
+- EAS Dashboard에서 Expo push security를 켠 경우 `EXPO_PUSH_ACCESS_TOKEN`도
+  설정한다. push security를 끄면 이 값은 비워둘 수 있다.
+- Android FCM v1 credential과 iOS APNs credential은 mobile 레포/EAS 쪽에서
+  설정한다.
+
 ## 스택
 
 NestJS 11 · Prisma 7 · Supabase Postgres · Vercel AI SDK(Gemini) · TypeScript(strict) · pnpm · Node 24 LTS.

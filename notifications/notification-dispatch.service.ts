@@ -1,10 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { NotificationPreferenceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   getPreviousCompletedWeekStart,
   toDateOnly,
 } from '../home/home-date.utils';
+import { PushNotificationService } from './push-notification.service';
 
 const SEOUL_OFFSET_MS = 9 * 60 * 60 * 1000;
 const PLAY_REMINDER_DEFAULT_TIME = '19:00';
@@ -28,9 +29,16 @@ type DispatchPrisma = Pick<
   'notificationPreference' | 'notification' | 'weeklyReport'
 >;
 
+type PushSender = Pick<PushNotificationService, 'sendToUser'>;
+
 @Injectable()
 export class NotificationDispatchService {
-  constructor(@Inject(PrismaService) private readonly prisma: DispatchPrisma) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: DispatchPrisma,
+    @Inject(PushNotificationService)
+    @Optional()
+    private readonly pushNotifications?: PushSender,
+  ) {}
 
   async dispatchPlayReminders(input: DispatchInput): Promise<DispatchResult> {
     const now = resolveNow(input.now);
@@ -100,6 +108,16 @@ export class NotificationDispatchService {
             targetType: 'child',
             targetId: child.id,
             priority: 'normal',
+          },
+        });
+        await this.pushNotifications?.sendToUser({
+          userId: preference.userId,
+          title: '10분 놀이 시간이에요',
+          body: `${child.name}와 오늘의 10분 놀이를 시작해보세요.`,
+          data: {
+            actionType: 'open_mission',
+            targetType: 'child',
+            targetId: child.id,
           },
         });
       }
@@ -180,6 +198,16 @@ export class NotificationDispatchService {
               targetType: 'weekly_report',
               targetId: report.id,
               priority: 'normal',
+            },
+          });
+          await this.pushNotifications?.sendToUser({
+            userId: preference.userId,
+            title: '주간 리포트가 준비됐어요',
+            body: '지난주 아이와 함께한 시간을 확인해보세요.',
+            data: {
+              actionType: 'open_report',
+              targetType: 'weekly_report',
+              targetId: report.id,
             },
           });
         }
