@@ -1,8 +1,12 @@
 import {
   Controller,
+  Body,
+  Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -15,11 +19,17 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUserId } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { SkipOnboardingCheck } from '../auth/skip-onboarding-check.decorator';
 import {
   MarkAllNotificationsReadResponseDto,
   NotificationListItemDto,
   NotificationListResponseDto,
 } from './dto/notification.dto';
+import {
+  DeletePushTokenResponseDto,
+  UpsertPushTokenDto,
+  UpsertPushTokenResponseDto,
+} from './dto/push-token.dto';
 import { NotificationsService } from './notifications.service';
 
 @ApiTags('notifications')
@@ -45,6 +55,28 @@ export class NotificationsController {
     @CurrentUserId() userId: string,
   ): Promise<MarkAllNotificationsReadResponseDto> {
     return this.notificationsService.markAllRead(userId);
+  }
+
+  @Post('push-tokens')
+  @SkipOnboardingCheck()
+  @ApiOkResponse({ type: UpsertPushTokenResponseDto })
+  upsertPushToken(
+    @CurrentUserId() userId: string,
+    @Body() body: UpsertPushTokenDto,
+  ): Promise<UpsertPushTokenResponseDto> {
+    return this.notificationsService.upsertPushToken(userId, body);
+  }
+
+  @Delete('push-tokens/:deviceId')
+  @HttpCode(200)
+  @SkipOnboardingCheck()
+  @ApiParam({ name: 'deviceId', type: String })
+  @ApiOkResponse({ type: DeletePushTokenResponseDto })
+  deletePushToken(
+    @CurrentUserId() userId: string,
+    @Param('deviceId') deviceId: string,
+  ): Promise<DeletePushTokenResponseDto> {
+    return this.notificationsService.deletePushToken(userId, deviceId);
   }
 
   @Patch(':id/read')
