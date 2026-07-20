@@ -5,17 +5,17 @@ import { PushNotificationService } from './push-notification.service';
 void describe('PushNotificationService', () => {
   void it('sends Expo push messages to every token for a user', async () => {
     const fetchCalls: unknown[] = [];
-    const service = new PushNotificationService(
-      {
-        userPushToken: {
-          findMany: () =>
-            Promise.resolve([
-              { token: 'ExponentPushToken[token-1]' },
-              { token: 'ExpoPushToken[token-2]' },
-            ]),
-        },
-      } as never,
-      (...args: unknown[]) => {
+    const service = new PushNotificationService({
+      userPushToken: {
+        findMany: () =>
+          Promise.resolve([
+            { token: 'ExponentPushToken[token-1]' },
+            { token: 'ExpoPushToken[token-2]' },
+          ]),
+      },
+    } as never);
+    Object.defineProperty(service, 'fetcher', {
+      value: (...args: Parameters<typeof fetch>) => {
         fetchCalls.push(args);
         return Promise.resolve({
           ok: true,
@@ -25,7 +25,7 @@ void describe('PushNotificationService', () => {
             }),
         } as Response);
       },
-    );
+    });
 
     const result = await service.sendToUser({
       userId: 'user-1',
@@ -62,20 +62,20 @@ void describe('PushNotificationService', () => {
 
   void it('does not call Expo when the user has no push tokens', async () => {
     const fetchCalls: unknown[] = [];
-    const service = new PushNotificationService(
-      {
-        userPushToken: {
-          findMany: () => Promise.resolve([]),
-        },
-      } as never,
-      (...args: unknown[]) => {
+    const service = new PushNotificationService({
+      userPushToken: {
+        findMany: () => Promise.resolve([]),
+      },
+    } as never);
+    Object.defineProperty(service, 'fetcher', {
+      value: (...args: Parameters<typeof fetch>) => {
         fetchCalls.push(args);
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: [] }),
         } as Response);
       },
-    );
+    });
 
     const result = await service.sendToUser({
       userId: 'user-1',
