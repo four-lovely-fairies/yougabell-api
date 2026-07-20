@@ -23,11 +23,9 @@ type PushResult = {
 @Injectable()
 export class PushNotificationService {
   private readonly logger = new Logger(PushNotificationService.name);
+  private fetcher: FetchLike = fetch;
 
-  constructor(
-    @Inject(PrismaService) private readonly prisma: PushPrisma,
-    private readonly fetcher: FetchLike = fetch,
-  ) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PushPrisma) {}
 
   async sendToUser(input: PushInput): Promise<PushResult> {
     const tokens = await this.prisma.userPushToken.findMany({
