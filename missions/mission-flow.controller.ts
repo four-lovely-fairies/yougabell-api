@@ -19,6 +19,8 @@ import {
   GetMissionExecutionEffectResponseDto,
   MissionExecutionActionBodyDto,
   MissionExecutionSnapshotResponseDto,
+  ResetMissionExecutionDto,
+  ResetMissionExecutionResponseDto,
   StartMissionExecutionDto,
   UpsertMissionFeedbackDto,
   UpsertMissionFeedbackResponseDto,
@@ -48,6 +50,18 @@ export class MissionFlowController {
     @Body() body: StartMissionExecutionDto,
   ) {
     return this.missionsService.startMissionExecution(userId, body);
+  }
+
+  @Post('mission-executions/reset')
+  @ApiOkResponse({ type: ResetMissionExecutionResponseDto })
+  resetTodayMissionExecution(
+    @CurrentUserId() userId: string,
+    @Body() body: ResetMissionExecutionDto,
+  ) {
+    return this.missionsService.resetTodayMissionExecution(
+      userId,
+      body.childId,
+    );
   }
 
   @Get('mission-executions/active')

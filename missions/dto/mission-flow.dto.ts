@@ -110,6 +110,17 @@ export class StartMissionExecutionDto {
   missionId!: string;
 }
 
+export class ResetMissionExecutionDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  childId!: string;
+}
+
+export class ResetMissionExecutionResponseDto {
+  @ApiProperty({ example: 1, description: '삭제된 오늘 미션 실행 수' })
+  deletedCount!: number;
+}
+
 export class MissionExecutionSnapshotDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
