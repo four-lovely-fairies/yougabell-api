@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { MissionExecutionStatus, Prisma } from '@prisma/client';
+import { findCurrentMission } from '../missions/missions.service/recommendation';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   formatDurationLabel,
@@ -19,7 +20,6 @@ import {
   HomeDashboard,
   HomeMoodCheck,
   HomeNotificationSummaryItem,
-  toRecommendedMissionStatus,
 } from './home.types';
 
 const COMPLETED_MISSION_STATUSES: MissionExecutionStatus[] = [
@@ -239,72 +239,25 @@ export class HomeService {
     ageMonths: number,
     today: Date,
   ): Promise<HomeDashboard['recommendedMission']> {
-    const todayStart = new Date(`${toSeoulDateKey(today)}T00:00:00+09:00`);
-    const todayEnd = new Date(`${toSeoulDateKey(today)}T23:59:59.999+09:00`);
+    const currentMission = await findCurrentMission(
+      this.prisma,
+      childId,
+      ageMonths,
+      today,
+    );
 
-    const existingExecution = await this.prisma.missionExecution.findFirst({
-      where: {
-        childId,
-        startedAt: { gte: todayStart, lte: todayEnd },
-        status: { not: 'cancelled' },
-      },
-      include: { mission: true },
-      orderBy: { startedAt: 'desc' },
-    });
-
-    if (existingExecution) {
-      return {
-        id: existingExecution.mission.id,
-        subThemeLabel:
-          existingExecution.mission.subThemeLabel ??
-          existingExecution.mission.categoryId,
-        title: existingExecution.mission.title,
-        durationMinutes: existingExecution.mission.durationMinutes,
-        status: toRecommendedMissionStatus(existingExecution.status),
-      };
-    }
-
-    const milestones = await this.prisma.milestone.findMany({
-      where: {
-        ageMonthsFrom: { lte: ageMonths },
-        ageMonthsTo: { gte: ageMonths },
-      },
-      select: { categoryId: true },
-      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
-    });
-    const categoryIds = [
-      ...new Set(milestones.map((milestone) => milestone.categoryId)),
-    ];
-
-    const mission = await this.prisma.mission.findFirst({
-      where: {
-        ...(categoryIds.length > 0 ? { categoryId: { in: categoryIds } } : {}),
-        OR: [
-          { recommendedAgeMonthsMin: null },
-          { recommendedAgeMonthsMin: { lte: ageMonths } },
-        ],
-        AND: [
-          {
-            OR: [
-              { recommendedAgeMonthsMax: null },
-              { recommendedAgeMonthsMax: { gte: ageMonths } },
-            ],
-          },
-        ],
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    if (!mission) {
+    if (!currentMission) {
       return null;
     }
 
     return {
-      id: mission.id,
-      subThemeLabel: mission.subThemeLabel ?? mission.categoryId,
-      title: mission.title,
-      durationMinutes: mission.durationMinutes,
-      status: 'not_started',
+      id: currentMission.mission.id,
+      subThemeLabel:
+        currentMission.mission.subThemeLabel ??
+        currentMission.mission.category.label,
+      title: currentMission.mission.title,
+      durationMinutes: currentMission.mission.durationMinutes,
+      status: currentMission.status,
     };
   }
 }
