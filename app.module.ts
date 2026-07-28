@@ -17,6 +17,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RoadmapModule } from './roadmap/roadmap.module';
+import { StatsModule } from './stats/stats.module';
 import { UsersModule } from './users/users.module';
 import { WeeklyReportsModule } from './weekly-reports/weekly-reports.module';
 
@@ -38,6 +39,7 @@ import { WeeklyReportsModule } from './weekly-reports/weekly-reports.module';
     MissionsModule,
     RoadmapModule,
     ChatModule,
+    StatsModule,
   ],
   controllers: [AppController],
   providers: [
