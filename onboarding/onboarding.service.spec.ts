@@ -22,7 +22,23 @@ const completeDto = {
     time: '08:30',
   },
   interests: ['sleep_routine'],
+  consents: { service: true, privacy: true, marketing: false },
 } as const;
+
+/** 동의 이력 stub — create 호출을 모아두고 findMany로 되돌려준다. */
+function consentStub() {
+  const calls: Array<Record<string, unknown>> = [];
+  return {
+    calls,
+    client: {
+      create: (args: { data: Record<string, unknown> }) => {
+        calls.push(args.data);
+        return Promise.resolve(args.data);
+      },
+      findMany: () => Promise.resolve([]),
+    },
+  };
+}
 
 void describe('OnboardingService', () => {
   void it('returns a non-onboarded placeholder for soft-deleted users', async () => {
@@ -52,6 +68,7 @@ void describe('OnboardingService', () => {
               notificationPreferences: [{ type: 'play_10min' }],
             }),
         },
+        userConsent: { findMany: () => Promise.resolve([]) },
       } as never,
       'user-1',
     );
@@ -69,6 +86,8 @@ void describe('OnboardingService', () => {
     const upsertCalls: unknown[] = [];
     const createManyCalls: unknown[] = [];
     const notificationUpsertCalls: unknown[] = [];
+    const chatDeleteCalls: unknown[] = [];
+    const consents = consentStub();
 
     const tx = {
       user: {
@@ -121,6 +140,14 @@ void describe('OnboardingService', () => {
           return Promise.resolve(undefined);
         },
       },
+      // 탈퇴 후 재온보딩 경로는 옛 대화를 지운다 (onboarding.service.ts 참조)
+      chatSession: {
+        deleteMany: (args: unknown) => {
+          chatDeleteCalls.push(args);
+          return Promise.resolve(undefined);
+        },
+      },
+      userConsent: consents.client,
     };
 
     const prisma = {
@@ -130,6 +157,8 @@ void describe('OnboardingService', () => {
 
     const service = new OnboardingService(prisma as never);
     const result = await service.complete('user-1', completeDto as never);
+
+    assert.equal(chatDeleteCalls.length, 1);
 
     assert.equal(updateManyCalls.length, 1);
     assert.equal(createManyCalls.length, 1);
@@ -161,10 +190,20 @@ void describe('OnboardingService', () => {
     assert.equal(weeklyPrefArg.create.time, '12:00');
     assert.equal(weeklyPrefArg.update.enabled, true);
     assert.equal(weeklyPrefArg.update.time, '12:00');
+
+    // 필수 2건만 기록되고 마케팅(false)은 row를 만들지 않는다 —
+    // "값이 안 왔다"와 "거부했다"를 구분하기 위해.
+    assert.deepEqual(
+      consents.calls.map((c) => c.type),
+      ['service', 'privacy'],
+    );
+    assert.ok(consents.calls.every((c) => c.agreed === true));
+    assert.ok(consents.calls.every((c) => c.source === 'user_action'));
   });
 
   void it('creates disabled notification preferences when onboarding skips notifications', async () => {
     const notificationUpsertCalls: unknown[] = [];
+    const consents = consentStub();
 
     const tx = {
       user: {
@@ -204,6 +243,7 @@ void describe('OnboardingService', () => {
           return Promise.resolve(undefined);
         },
       },
+      userConsent: consents.client,
     };
 
     const prisma = {
@@ -229,5 +269,48 @@ void describe('OnboardingService', () => {
     };
     assert.equal(weeklyPrefArg.create.enabled, false);
     assert.equal(weeklyPrefArg.create.time, '12:00');
+  });
+
+  void it('records required consents as backfill when consents are absent', async () => {
+    const consents = consentStub();
+    const tx = {
+      user: {
+        findUnique: (args: { include?: unknown }) =>
+          args.include
+            ? Promise.resolve({
+                id: 'user-1',
+                children: [],
+                notificationPreferences: [],
+                deletedAt: null,
+              })
+            : Promise.resolve(null),
+        upsert: () => Promise.resolve(undefined),
+      },
+      child: {
+        createMany: () => Promise.resolve(undefined),
+        updateMany: () => Promise.resolve(undefined),
+      },
+      notificationPreference: { upsert: () => Promise.resolve(undefined) },
+      userConsent: consents.client,
+    };
+    const prisma = {
+      $transaction: (callback: (client: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+    };
+
+    const service = new OnboardingService(prisma as never);
+    await service.complete('user-1', {
+      ...completeDto,
+      consents: undefined,
+    } as never);
+
+    // 구버전 클라이언트 요청 — 받았는지 모르는 게 아니라 플로우가 강제했으므로
+    // 기록은 남기되 source로 "직접 체크"와 구분한다.
+    assert.deepEqual(
+      consents.calls.map((c) => c.type),
+      ['service', 'privacy'],
+    );
+    assert.ok(consents.calls.every((c) => c.source === 'backfill'));
+    assert.ok(consents.calls.every((c) => typeof c.note === 'string'));
   });
 });

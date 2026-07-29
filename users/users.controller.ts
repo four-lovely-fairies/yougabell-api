@@ -22,6 +22,7 @@ import { SkipOnboardingCheck } from '../auth/skip-onboarding-check.decorator';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DeleteAccountDto } from './dto/delete-account.dto';
+import { UpdateConsentDto } from './dto/update-consent.dto';
 import { UpdateInterestsDto } from './dto/update-interests.dto';
 import { UpdateParentDto } from './dto/update-parent.dto';
 import { UpsertNotificationPreferenceDto } from './dto/upsert-notification-preference.dto';
@@ -90,6 +91,26 @@ export class UsersController {
     @Body() body: UpsertNotificationPreferenceDto,
   ) {
     return this.users.upsertNotificationPreference(userId, type, body);
+  }
+
+  @Patch('consents/:type')
+  @ApiParam({
+    name: 'type',
+    enum: ['marketing'],
+    description:
+      '변경 가능한 동의 종류. 필수 2건(service·privacy)은 철회 대상이 아니라 400.',
+  })
+  @ApiOperation({
+    summary: '선택 동의 변경 (마케팅 수신)',
+    description:
+      'append-only — 기존 row를 고치지 않고 새 이력을 쌓는다. 철회 시각도 근거로 남는다.',
+  })
+  async updateConsent(
+    @CurrentUserId() userId: string,
+    @Param('type') type: string,
+    @Body() body: UpdateConsentDto,
+  ) {
+    return this.users.updateConsent(userId, type, body);
   }
 
   @Delete()
