@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { MissionExecutionStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { milestoneAgeWhere } from '../milestones/milestone-age';
 import {
   formatDurationLabel,
   getAgeLabel,
@@ -265,10 +266,7 @@ export class HomeService {
     }
 
     const milestones = await this.prisma.milestone.findMany({
-      where: {
-        ageMonthsFrom: { lte: ageMonths },
-        ageMonthsTo: { gte: ageMonths },
-      },
+      where: milestoneAgeWhere(ageMonths),
       select: { categoryId: true },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     });
