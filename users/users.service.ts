@@ -1,12 +1,16 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
 import { NotificationPreferenceType, Prisma } from '@prisma/client';
+import { isOptionalConsentType } from '../consents/consent.constants';
+import { recordConsent } from '../consents/consents.repository';
 import { defaultNotificationTime } from '../notifications/notification-dispatch.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
+import type { UpdateConsentDto } from './dto/update-consent.dto';
 import type { UpdateParentDto } from './dto/update-parent.dto';
 import type { UpdateInterestsDto } from './dto/update-interests.dto';
 import type { UpsertNotificationPreferenceDto } from './dto/upsert-notification-preference.dto';
@@ -83,6 +87,31 @@ export class UsersService {
       create: { userId, type, enabled: dto.enabled, time },
       update: { enabled: dto.enabled, time },
     });
+  }
+
+  /**
+   * PATCH /me/consents/:type — 선택 동의 변경 (docs/features/20260729-consent-storage.md §4.3).
+   *
+   * 필수 2건(service·privacy)은 철회 대상이 아니다 — 철회 = 서비스 이용 불가라
+   * 토글로 다룰 성질이 아니므로 400으로 막는다.
+   * 기존 row를 고치지 않고 새 이력을 쌓는다 (append-only).
+   */
+  async updateConsent(userId: string, type: string, dto: UpdateConsentDto) {
+    if (!isOptionalConsentType(type)) {
+      throw new BadRequestException({
+        code: 'CONSENT_TYPE_NOT_CHANGEABLE',
+        message: `변경 가능한 동의 종류가 아닙니다: ${type}`,
+      });
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, deletedAt: true },
+    });
+    if (!user || user.deletedAt) throw new NotFoundException('USER_NOT_FOUND');
+
+    await recordConsent(this.prisma, { userId, type, agreed: dto.agreed });
+    return this.onboarding.getMe(this.prisma, userId);
   }
 
   /**
