@@ -45,8 +45,43 @@ model User {
   mentalCareExecutions    MentalCareExecution[]
   chatSessions            ChatSession[]
   weeklyReports           WeeklyReport[]
+  consents                UserConsent[]
 
   @@index([deletedAt])
+}
+
+/// 약관 동의 이력 (docs/features/20260729-consent-storage.md).
+///
+/// **append-only** — 현재 상태를 덮어쓰지 않고 매번 새 row를 쌓는다. 마케팅 동의는
+/// 철회·재동의가 가능해야 하고 "언제 동의했다가 언제 철회했는지"가 분쟁 시 근거이므로
+/// `@@unique([userId, type])`를 두지 않는다. 현재 값 = type별 `agreedAt` 최신 row.
+///
+/// row가 아예 없는 상태와 `agreed: false`는 다르다 — 전자는 "모름", 후자는 "거부 의사 표시".
+model UserConsent {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @db.Uuid
+  type      ConsentType
+  agreed    Boolean
+  version   String // 약관 버전 문자열. 개정일을 쓴다 (예: "2026-05-15")
+  source    ConsentSource @default(user_action)
+  note      String? // 소급 생성 사유 등
+  agreedAt  DateTime      @default(now())
+  createdAt DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, agreedAt])
+}
+
+enum ConsentType {
+  service // 서비스 이용약관 (필수)
+  privacy // 개인정보 처리방침 (필수)
+  marketing // 마케팅 수신동의 (선택)
+}
+
+enum ConsentSource {
+  user_action // 사용자가 온보딩·설정에서 직접 체크
+  backfill // 온보딩 필수동의 강제 플로우 기반 소급 생성
 }
 
 // 관심 주제 (docs/features/20260508-onboarding.md §4 관심 주제-04 + 20260519-settings.md §3.1).
