@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { getAgeLabel, getAgeMonths } from '../home/home-date.utils';
+import { milestoneAgeWhere } from '../milestones/milestone-age';
 import {
   AGE_MONTH_MAX,
   AGE_MONTH_MIN,
@@ -81,8 +82,7 @@ export class RoadmapService {
       }),
       this.prisma.milestone.findMany({
         where: {
-          ageMonthsFrom: { lte: targetMonth },
-          ageMonthsTo: { gte: targetMonth },
+          ...milestoneAgeWhere(targetMonth),
           categoryId: { in: ROADMAP_CATEGORY_ORDER },
         },
         include: { sources: true },
