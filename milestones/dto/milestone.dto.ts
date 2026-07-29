@@ -95,7 +95,9 @@ export class ListMilestonesQueryDto {
 
   @ApiPropertyOptional({
     minimum: 0,
-    description: '월령 N이 [ageMonthsFrom, ageMonthsTo] 범위 안인 마일스톤만',
+    description:
+      '월령 N이 (ageMonthsFrom, ageMonthsTo] 반열린 구간 안인 마일스톤만. ' +
+      'ageMonthsFrom은 직전 시점이라 포함하지 않는다 (앱 로드맵과 동일 규칙).',
   })
   @IsOptional()
   @IsInt()
