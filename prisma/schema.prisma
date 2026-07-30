@@ -36,16 +36,18 @@ model User {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
-  children                Child[]
-  notifications           Notification[]
-  notificationPreferences NotificationPreference[]
-  pushTokens              UserPushToken[]
-  batteryChecks           MentalBatteryCheck[]
-  missionExecutions       MissionExecution[]
-  mentalCareExecutions    MentalCareExecution[]
-  chatSessions            ChatSession[]
-  weeklyReports           WeeklyReport[]
-  consents                UserConsent[]
+  children                    Child[]
+  notifications               Notification[]
+  notificationPreferences     NotificationPreference[]
+  pushTokens                  UserPushToken[]
+  batteryChecks               MentalBatteryCheck[]
+  missionExecutions           MissionExecution[]
+  surveyPromptStates          SurveyPromptState[]
+  satisfactionSurveyResponses SatisfactionSurveyResponse[]
+  mentalCareExecutions        MentalCareExecution[]
+  chatSessions                ChatSession[]
+  weeklyReports               WeeklyReport[]
+  consents                    UserConsent[]
 
   @@index([deletedAt])
 }
@@ -517,6 +519,44 @@ model MissionFeedbackKeyword {
 
   @@unique([feedbackId, rank])
   @@index([keyword])
+}
+
+// ============================================================
+// Surveys
+// ============================================================
+
+model SurveyPromptState {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
+  campaignKey    String
+  shownCount     Int       @default(0)
+  dismissedCount Int       @default(0)
+  lastShownAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, campaignKey])
+  @@index([userId])
+}
+
+model SatisfactionSurveyResponse {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @db.Uuid
+  campaignKey      String
+  discoverySource  String
+  experienceRating Int
+  likedOptions     String[]
+  improvementText  String?
+  contact          String?
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, campaignKey])
+  @@index([userId])
+  @@index([campaignKey])
 }
 
 // ============================================================
