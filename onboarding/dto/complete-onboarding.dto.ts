@@ -9,7 +9,9 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  Equals,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -113,6 +115,28 @@ class NotificationPreferenceDto {
   time?: string;
 }
 
+/**
+ * 약관 동의 (docs/features/20260729-consent-storage.md).
+ * 필수 2건은 `true`가 아니면 400 — 클라이언트 강제(바텀시트)와 이중 방어.
+ */
+class ConsentsDto {
+  @ApiProperty({ description: '서비스 이용약관 (필수). true만 허용.' })
+  @Equals(true, { message: 'service consent is required' })
+  service!: boolean;
+
+  @ApiProperty({ description: '개인정보 처리방침 (필수). true만 허용.' })
+  @Equals(true, { message: 'privacy consent is required' })
+  privacy!: boolean;
+
+  @ApiPropertyOptional({
+    description: '마케팅 수신동의 (선택). true일 때만 동의 row를 남긴다.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  marketing?: boolean;
+}
+
 export class CompleteOnboardingDto {
   @ApiProperty({ type: ParentDto })
   @ValidateNested()
@@ -148,4 +172,14 @@ export class CompleteOnboardingDto {
   @ArrayMaxSize(3)
   @IsEnum(INTEREST_VALUES, { each: true })
   interests?: InterestId[];
+
+  @ApiPropertyOptional({
+    type: ConsentsDto,
+    description:
+      '약관 동의. 미포함 요청은 구버전 클라이언트로 보고 필수 2건을 source=backfill로 기록한다.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ConsentsDto)
+  consents?: ConsentsDto;
 }

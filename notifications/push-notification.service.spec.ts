@@ -87,4 +87,53 @@ void describe('PushNotificationService', () => {
     assert.deepEqual(result, { attempted: 0, sent: 0, failed: 0 });
     assert.equal(fetchCalls.length, 0);
   });
+
+  void it('surfaces per-token Expo errors for diagnostics', async () => {
+    const service = new PushNotificationService({
+      userPushToken: {
+        findMany: () =>
+          Promise.resolve([
+            { token: 'ExponentPushToken[live]' },
+            { token: 'ExponentPushToken[dead]' },
+          ]),
+      },
+    } as never);
+    Object.defineProperty(service, 'fetcher', {
+      value: () =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                { status: 'ok' },
+                {
+                  status: 'error',
+                  message: 'device not registered',
+                  details: { error: 'DeviceNotRegistered' },
+                },
+              ],
+            }),
+        } as Response),
+    });
+
+    const result = await service.sendToUserDetailed({
+      userId: 'user-1',
+      title: '테스트',
+      body: '본문',
+      data: {},
+    });
+
+    assert.equal(result.attempted, 2);
+    assert.equal(result.sent, 1);
+    assert.equal(result.failed, 1);
+    assert.deepEqual(result.tickets, [
+      { token: 'ExponentPushToken[live]', status: 'ok' },
+      {
+        token: 'ExponentPushToken[dead]',
+        status: 'error',
+        error: 'DeviceNotRegistered',
+        message: 'device not registered',
+      },
+    ]);
+  });
 });

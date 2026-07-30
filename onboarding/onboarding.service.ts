@@ -1,5 +1,11 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { NotificationPreferenceType, Prisma } from '@prisma/client';
+import { REQUIRED_CONSENT_TYPES } from '../consents/consent.constants';
+import {
+  getConsents,
+  recordConsent,
+  type PrismaLike,
+} from '../consents/consents.repository';
 import { defaultNotificationTime } from '../notifications/notification-dispatch.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteOnboardingDto } from './dto/complete-onboarding.dto';
@@ -8,6 +14,34 @@ const NOTIFICATION_TYPES: NotificationPreferenceType[] = [
   'play_10min',
   'weekly_report',
 ];
+
+/**
+ * 온보딩 동의 기록 (docs/features/20260729-consent-storage.md §4.1).
+ *
+ * - 필수 2건은 항상 남긴다. DTO가 `true`만 통과시키므로 여기 도달하면 동의된 것.
+ * - `consents` 자체가 없는 요청(구버전 WebView 캐시)은 필수 2건을 `backfill`로 기록해
+ *   "사용자가 실제로 체크한 것"과 구분한다.
+ * - 마케팅은 **true일 때만** row를 만든다. false로 row를 남기면 "거부 의사 표시"라는
+ *   다른 의미가 되어 버린다 — 값이 안 온 것과 거부는 다르다.
+ */
+async function recordOnboardingConsents(
+  tx: PrismaLike,
+  userId: string,
+  consents: CompleteOnboardingDto['consents'],
+) {
+  const source = consents ? 'user_action' : 'backfill';
+  const note = consents
+    ? undefined
+    : 'consents 미포함 요청 — 온보딩 필수동의 강제 플로우 기반 기록';
+
+  for (const type of REQUIRED_CONSENT_TYPES) {
+    await recordConsent(tx, { userId, type, agreed: true, source, note });
+  }
+
+  if (consents?.marketing) {
+    await recordConsent(tx, { userId, type: 'marketing', agreed: true });
+  }
+}
 
 @Injectable()
 export class OnboardingService {
@@ -101,6 +135,8 @@ export class OnboardingService {
         })),
       });
 
+      await recordOnboardingConsents(tx, userId, dto.consents);
+
       return this.getMe(tx, userId);
     });
   }
@@ -116,17 +152,23 @@ export class OnboardingService {
       | Omit<Prisma.TransactionClient, '$connect' | '$disconnect'>,
     userId: string,
   ) {
-    const me = await client.user.findUnique({
-      where: { id: userId },
-      include: {
-        children: {
-          where: { deletedAt: null },
-          orderBy: { createdAt: 'asc' },
+    const [me, consents] = await Promise.all([
+      client.user.findUnique({
+        where: { id: userId },
+        include: {
+          children: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: 'asc' },
+          },
+          notificationPreferences: { orderBy: { type: 'asc' } },
         },
-        notificationPreferences: { orderBy: { type: 'asc' } },
-      },
-    });
-    if (me && !me.deletedAt) return me;
+      }),
+      getConsents(client, userId),
+    ]);
+    if (me && !me.deletedAt) return { ...me, consents };
+
+    // 탈퇴·미가입 사용자는 동의 이력을 노출하지 않는다 — 노출할 세션 컨텍스트가 없다.
+    const emptyConsents = { service: null, privacy: null, marketing: null };
 
     if (me?.deletedAt) {
       return {
@@ -146,6 +188,7 @@ export class OnboardingService {
         updatedAt: me.updatedAt,
         children: [],
         notificationPreferences: [],
+        consents: emptyConsents,
       };
     }
 
@@ -166,6 +209,7 @@ export class OnboardingService {
       updatedAt: null,
       children: [],
       notificationPreferences: [],
+      consents: emptyConsents,
     };
   }
 }

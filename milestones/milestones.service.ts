@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { milestoneAgeWhere } from './milestone-age';
 import {
   CreateMilestoneDto,
   ListMilestonesQueryDto,
@@ -13,13 +14,12 @@ export class MilestonesService {
   async list(query: ListMilestonesQueryDto) {
     const take = query.take ?? 50;
 
+    // 월령 필터는 앱(로드맵)과 같은 반열린 구간 규칙을 쓴다 — 운영자가 본 목록과
+    // 사용자 화면이 어긋나면 검수가 불가능해진다. 규칙은 milestone-age.ts 참조.
     const where = {
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
       ...(query.ageMonths !== undefined
-        ? {
-            ageMonthsFrom: { lte: query.ageMonths },
-            ageMonthsTo: { gte: query.ageMonths },
-          }
+        ? milestoneAgeWhere(query.ageMonths)
         : {}),
     };
 

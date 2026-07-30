@@ -39,7 +39,7 @@ import {
   normalizeFeedbackNote,
   toMissionFeedbackResponse,
 } from './feedback.utils';
-import { findCurrentMission } from './recommendation';
+import { findCurrentMission, toSeoulDateKey } from './recommendation';
 import {
   ACTIVE_EXECUTION_SELECT,
   ACTIVE_MISSION_STATUSES,
@@ -329,6 +329,29 @@ export class MissionsService {
     return {
       feedback: toMissionFeedbackResponse(feedback),
     };
+  }
+
+  /**
+   * 오늘(서울 날짜) 해당 아이의 미션 실행 기록을 모두 삭제한다 — "오늘의 미션 다시 하기".
+   * 완료 처리된 실행을 지워 다시 처음부터 진행할 수 있게 한다.
+   * MissionFeedback(및 keyword)은 onDelete: Cascade로 함께 삭제된다.
+   */
+  async resetTodayMissionExecution(userId: string, childId: string) {
+    await this.assertActiveChild(userId, childId);
+
+    const todayKey = toSeoulDateKey(new Date());
+    const result = await this.prisma.missionExecution.deleteMany({
+      where: {
+        userId,
+        childId,
+        startedAt: {
+          gte: new Date(`${todayKey}T00:00:00+09:00`),
+          lte: new Date(`${todayKey}T23:59:59.999+09:00`),
+        },
+      },
+    });
+
+    return { deletedCount: result.count };
   }
 
   private async assertActiveChild(userId: string, childId: string) {

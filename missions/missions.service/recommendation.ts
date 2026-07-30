@@ -1,5 +1,6 @@
 import { MissionExecutionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { milestoneAgeWhere } from '../../milestones/milestone-age';
 import { toCurrentMissionStatus } from './execution.utils';
 import {
   CURRENT_MISSION_SELECT,
@@ -24,10 +25,7 @@ export async function findRecommendedMission(
   const effectiveAge = await clampAgeToMissionCatalog(prisma, ageMonths);
 
   const milestones = await prisma.milestone.findMany({
-    where: {
-      ageMonthsFrom: { lte: effectiveAge },
-      ageMonthsTo: { gte: effectiveAge },
-    },
+    where: milestoneAgeWhere(effectiveAge),
     select: { categoryId: true },
     orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
   });
@@ -179,7 +177,7 @@ function hashToIndex(seed: string, length: number): number {
   return ((hash % length) + length) % length;
 }
 
-function toSeoulDateKey(date: Date): string {
+export function toSeoulDateKey(date: Date): string {
   const seoul = new Date(date.getTime() + 9 * 60 * 60 * 1000);
   return `${seoul.getUTCFullYear()}-${String(seoul.getUTCMonth() + 1).padStart(2, '0')}-${String(seoul.getUTCDate()).padStart(2, '0')}`;
 }
