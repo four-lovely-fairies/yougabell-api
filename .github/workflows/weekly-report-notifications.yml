@@ -1,10 +1,6 @@
 name: Weekly report notifications
 
 on:
-  schedule:
-    # KST Monday spans UTC Sunday 15:00 through Monday 14:59.
-    - cron: '*/5 15-23 * * 0'
-    - cron: '*/5 0-14 * * 1'
   workflow_dispatch:
     inputs:
       now:

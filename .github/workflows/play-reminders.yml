@@ -1,8 +1,6 @@
 name: Play reminder notifications
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       now:

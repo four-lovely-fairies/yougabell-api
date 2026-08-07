@@ -1,9 +1,6 @@
 name: Weekly report generation
 
 on:
-  schedule:
-    # Monday 00:00 KST = Sunday 15:00 UTC.
-    - cron: '0 15 * * 0'
   workflow_dispatch:
     inputs:
       weekStart:
