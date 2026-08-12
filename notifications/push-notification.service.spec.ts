@@ -29,7 +29,7 @@ void describe('PushNotificationService', () => {
 
     const result = await service.sendToUser({
       userId: 'user-1',
-      title: '아이랑 놀이할 시간이에요!',
+      title: '아이랑 놀이할 시간이에요! ✨',
       body: '아이와 함께 오늘의 10분 놀이를 시작해볼까요?',
       data: { actionType: 'open_mission', targetType: 'child' },
     });
@@ -45,14 +45,14 @@ void describe('PushNotificationService', () => {
     assert.deepEqual(JSON.parse(body), [
       {
         to: 'ExponentPushToken[token-1]',
-        title: '아이랑 놀이할 시간이에요!',
+        title: '아이랑 놀이할 시간이에요! ✨',
         body: '아이와 함께 오늘의 10분 놀이를 시작해볼까요?',
         sound: 'default',
         data: { actionType: 'open_mission', targetType: 'child' },
       },
       {
         to: 'ExpoPushToken[token-2]',
-        title: '아이랑 놀이할 시간이에요!',
+        title: '아이랑 놀이할 시간이에요! ✨',
         body: '아이와 함께 오늘의 10분 놀이를 시작해볼까요?',
         sound: 'default',
         data: { actionType: 'open_mission', targetType: 'child' },

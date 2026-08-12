@@ -48,8 +48,56 @@ void describe('NotificationDispatchService', () => {
     assert.deepEqual(pushCalls, [
       {
         userId: 'user-1',
-        title: '아이랑 놀이할 시간이에요!',
+        title: '아이랑 놀이할 시간이에요! ✨',
         body: '아이와 함께 오늘의 10분 놀이를 시작해볼까요?',
+        data: {
+          actionType: 'open_mission',
+          targetType: 'child',
+          targetId: 'child-1',
+        },
+      },
+    ]);
+  });
+
+  void it('picks the 받침 form of the josa for names ending in a consonant', async () => {
+    const pushCalls: unknown[] = [];
+    const service = new NotificationDispatchService(
+      {
+        notificationPreference: {
+          findMany: () =>
+            Promise.resolve([
+              {
+                userId: 'user-1',
+                time: '19:00',
+                user: {
+                  children: [{ id: 'child-1', name: '지훈' }],
+                },
+              },
+            ]),
+        },
+        notification: {
+          findFirst: () => Promise.resolve(null),
+          create: (args: unknown) => Promise.resolve(args),
+        },
+        weeklyReport: {
+          findMany: () => Promise.resolve([]),
+        },
+      } as never,
+      {
+        sendToUser: (args: unknown) => {
+          pushCalls.push(args);
+          return Promise.resolve({ attempted: 1, sent: 1, failed: 0 });
+        },
+      },
+    );
+
+    await service.dispatchPlayReminders({ now: '2026-05-30T10:00:00.000Z' });
+
+    assert.deepEqual(pushCalls, [
+      {
+        userId: 'user-1',
+        title: '지훈이랑 놀이할 시간이에요! ✨',
+        body: '지훈과 함께 오늘의 10분 놀이를 시작해볼까요?',
         data: {
           actionType: 'open_mission',
           targetType: 'child',
@@ -157,7 +205,7 @@ void describe('NotificationDispatchService', () => {
     assert.deepEqual(pushCalls, [
       {
         userId: 'user-1',
-        title: '7일간의 소중한 기록이 모여 리포트가 도착했어요',
+        title: '7일간의 소중한 기록이 모여 리포트가 도착했어요💌',
         body: '지난주 아이와 함께한 시간을 지금 바로 확인해보세요!',
         data: {
           actionType: 'open_report',
