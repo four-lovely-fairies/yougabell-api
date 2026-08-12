@@ -48,8 +48,8 @@ void describe('NotificationDispatchService', () => {
     assert.deepEqual(pushCalls, [
       {
         userId: 'user-1',
-        title: '10분 놀이 시간이에요',
-        body: '아이와 오늘의 10분 놀이를 시작해보세요.',
+        title: '아이랑 놀이할 시간이에요!',
+        body: '아이와 함께 오늘의 10분 놀이를 시작해볼까요?',
         data: {
           actionType: 'open_mission',
           targetType: 'child',
@@ -157,8 +157,8 @@ void describe('NotificationDispatchService', () => {
     assert.deepEqual(pushCalls, [
       {
         userId: 'user-1',
-        title: '주간 리포트가 준비됐어요',
-        body: '지난주 아이와 함께한 시간을 확인해보세요.',
+        title: '7일간의 소중한 기록이 모여 리포트가 도착했어요',
+        body: '지난주 아이와 함께한 시간을 지금 바로 확인해보세요!',
         data: {
           actionType: 'open_report',
           targetType: 'weekly_report',
