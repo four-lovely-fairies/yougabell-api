@@ -21,6 +21,10 @@ import {
 import { buildChatSystemPrompt } from '../ai/prompts/chat-system';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  containsSystemPromptLeak,
+  sanitizeAssistantContent,
+} from './chat-sanitize';
+import {
   CHAT_RECENT_MESSAGES_LIMIT,
   type ChatMessage,
   type ChatResponse,
@@ -34,6 +38,13 @@ const RECENT_HISTORY_FOR_PROMPT = 10;
 const CHAT_SEGMENT_MAX_OUTPUT_TOKENS = 1024;
 // 한 응답에서 이어 생성할 최대 세그먼트 수 — 폭주 방지 안전 상한.
 const CHAT_MAX_SEGMENTS = 5;
+// 이 길이를 넘는 응답은 정상 대화가 아닐 가능성이 높다 (프롬프트 되뱉음 등).
+// 차단하지는 않고 경고만 남긴다 — 정상적으로 긴 답변도 있을 수 있으므로.
+const CHAT_REPLY_LENGTH_WARN_CHARS = 2000;
+// sanitize 결과가 통째로 비었을 때 대신 보여줄 본문.
+// 빈 말풍선을 띄우느니 재시도를 안내한다. (i18n 도입 시 locale별 분기 대상)
+const CHAT_FALLBACK_REPLY =
+  '죄송해요, 답변을 정리하는 중에 문제가 생겼어요. 한 번만 다시 말씀해 주시겠어요?';
 
 type MessageWithRelations = Prisma.ChatMessageGetPayload<{
   include: { cards: true; sourceLinks: true };
@@ -178,20 +189,35 @@ export class ChatService {
       break;
     }
 
+    // 프롬프트 되뱉음·비정상 길이 감지 — 카드 추출 전에 판정한다.
+    const promptLeaked = containsSystemPromptLeak(full);
+    if (promptLeaked) {
+      this.logger.warn(
+        `system prompt leak detected — sessionId=${sessionId}, chars=${full.length}, tokens=${totalTokens}`,
+      );
+    } else if (full.length > CHAT_REPLY_LENGTH_WARN_CHARS) {
+      this.logger.warn(
+        `unusually long reply — sessionId=${sessionId}, chars=${full.length}, tokens=${totalTokens}`,
+      );
+    }
+
     let cardsPayload: ChatCardsPayload = { cards: [], sources: [] };
-    try {
-      // AI SDK v6: generateText + Output.object 으로 구조화 출력.
-      const extraction = await generateText({
-        model: this.aiConfig.chatModel(),
-        system: CHAT_CARDS_SYSTEM_PROMPT,
-        prompt: full,
-        experimental_output: Output.object({ schema: ChatCardsSchema }),
-      });
-      cardsPayload = extraction.experimental_output;
-      totalTokens += sumUsage(extraction.usage);
-    } catch (err) {
-      // 카드 추출 실패해도 본문은 보낸다 — 사용자 경험 저하 최소화.
-      this.logger.warn(`cards extraction failed: ${(err as Error).message}`);
+    // 누출된 응답에서 뽑은 카드는 전부 지시문 조각이다 — 추출 자체를 건너뛴다.
+    if (!promptLeaked) {
+      try {
+        // AI SDK v6: generateText + Output.object 으로 구조화 출력.
+        const extraction = await generateText({
+          model: this.aiConfig.chatModel(),
+          system: CHAT_CARDS_SYSTEM_PROMPT,
+          prompt: full,
+          experimental_output: Output.object({ schema: ChatCardsSchema }),
+        });
+        cardsPayload = extraction.experimental_output;
+        totalTokens += sumUsage(extraction.usage);
+      } catch (err) {
+        // 카드 추출 실패해도 본문은 보낸다 — 사용자 경험 저하 최소화.
+        this.logger.warn(`cards extraction failed: ${(err as Error).message}`);
+      }
     }
 
     // 출처 링크는 LLM 생성 X → retrieve된 chunks의 sourceUrl만 노출 (환각 차단).
@@ -199,7 +225,8 @@ export class ChatService {
     const knowledgeSources = mergeKnowledgeSources(retrievedChunks);
 
     // 카드 추출은 원본 full에서(누출된 행동내용도 카드로 흡수), 저장·표시 본문은 정리본.
-    const cleaned = sanitizeAssistantContent(full);
+    // 정리 결과가 통째로 비면(프롬프트만 뱉은 경우 등) 빈 말풍선 대신 안내 문구로 대체.
+    const cleaned = sanitizeAssistantContent(full) || CHAT_FALLBACK_REPLY;
 
     const assistant = await this.saveAssistant({
       sessionId,
@@ -337,29 +364,6 @@ function sumUsage(
 ): number {
   if (!usage) return 0;
   return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
-}
-
-/**
- * 모델 본문 누출물 제거 — 프롬프트로 막아도 가끔 새므로 저장·표시 직전 결정적으로 정리.
- * 1) 구조 블록("cards:"·"type:"·"content:"·"items:" 로 시작하는 줄)부터 끝까지 → 제거
- *    (본문 맨 앞에서 시작하는 누출도 포함 — 블록이 본문 전체면 빈 본문이 된다)
- * 2) 코드펜스(```)는 금지 서식 — 펜스 마커만 걷어내고 안의 텍스트는 본문으로 흡수 (한 줄 overflow 방지)
- * 3) 인라인 출처 번호 표기: "[참고 자료 1]", "[참고자료 1, 2]", "[출처 3]" → 제거
- */
-export function sanitizeAssistantContent(raw: string): string {
-  let text = raw;
-  // 구조 블록(cards:/type:/content:/items: 로 시작하는 줄) 누출 제거.
-  // 본문 "맨 앞"에서 시작하는 경우(선행 개행 없음)까지 잡도록 `^|\n`로 앵커링하고,
-  // 카드 항목 키 `items:`도 마커에 포함한다. 카드는 별도로 추출·렌더되므로
-  // 본문에서는 누출만 걷어내며, 블록이 본문 전체면 빈 본문이 된다.
-  text = text.replace(
-    /(?:^|\n)[ \t]*-?[ \t]*(?:cards|type|title|content|items)[ \t]*:[\s\S]*$/i,
-    '',
-  );
-  // 코드펜스 마커만 제거 (내용 보존). 챗 본문은 코드블록을 쓰지 않음.
-  text = text.replace(/```[a-zA-Z0-9]*\n?/g, '');
-  text = text.replace(/\s*\[\s*(?:참고\s*자료|참고자료|출처)[^\]]*\]/g, '');
-  return text.replace(/[ \t]+\n/g, '\n').trim();
 }
 
 function toChatMessage(row: MessageWithRelations): ChatMessage {

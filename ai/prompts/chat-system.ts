@@ -2,6 +2,36 @@ import type { ChatContext } from '../context-builder.service';
 import type { RetrievedChunk } from '../knowledge-retrieval.service';
 
 /**
+ * 시스템 프롬프트 고유 섹션 헤더 — 모델 답변 본문에는 절대 등장하면 안 되는 문자열.
+ *
+ * 2026-08-12 모델이 지시문을 답변으로 그대로 되뱉어 3,718자가 사용자 화면에
+ * 노출된 사고가 있었다. 기존 sanitizer는 `cards:` YAML 누출만 막고 있어
+ * 걸러지지 않았다. 아래 마커를 sanitize 단계의 절단 기준으로 쓴다.
+ *
+ * **프롬프트에 `[...]` 섹션을 추가하면 여기에도 반드시 추가한다.**
+ *
+ * ⚠️ `[참고 자료]`는 의도적으로 제외 — 본문 인용 표기(`[참고 자료 1]`)를
+ *    토큰 단위로 지우는 기존 로직과 충돌해 정상 답변이 잘린다.
+ */
+export const SYSTEM_PROMPT_SECTION_MARKERS = [
+  '[원칙]',
+  '[지식 베이스 인용 규칙]',
+  '[건강·의료 정보 규칙',
+  '[본문 작성 규칙',
+  '[사용자 컨텍스트]',
+  '[답변 형식]',
+] as const;
+
+function escapeRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** `SYSTEM_PROMPT_SECTION_MARKERS` 단일 소스에서 파생 — 별도 관리하지 않는다. */
+export const SYSTEM_PROMPT_LEAK_PATTERN = new RegExp(
+  SYSTEM_PROMPT_SECTION_MARKERS.map(escapeRegExp).join('|'),
+);
+
+/**
  * 챗봇 시스템 프롬프트.
  * Figma 부제 "사용자의 행동 데이터와 패턴을 기반으로 대화합니다."를 충실히 구현.
  *

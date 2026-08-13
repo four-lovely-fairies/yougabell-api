@@ -4,7 +4,11 @@ import type { AiConfigService } from '../ai/ai-config.service';
 import type { ContextBuilderService } from '../ai/context-builder.service';
 import type { KnowledgeRetrievalService } from '../ai/knowledge-retrieval.service';
 import type { PrismaService } from '../prisma/prisma.service';
-import { ChatService, sanitizeAssistantContent } from './chat.service';
+import {
+  containsSystemPromptLeak,
+  sanitizeAssistantContent,
+} from './chat-sanitize';
+import { ChatService } from './chat.service';
 
 void describe('sanitizeAssistantContent', () => {
   void it('인라인 출처 번호 표기를 제거한다', () => {
@@ -71,6 +75,105 @@ void describe('sanitizeAssistantContent', () => {
   void it('정상 본문은 그대로 둔다', () => {
     const text = '성진님, 정말 대단하세요.\n\n오늘도 차근차근 해봐요.';
     assert.equal(sanitizeAssistantContent(text), text);
+  });
+});
+
+// 2026-08-12 사고 회귀 — 모델이 시스템 프롬프트를 답변으로 되뱉어
+// 3,718자가 사용자 화면에 그대로 노출됐다. 기존 sanitizer는 `cards:` YAML만
+// 막고 있어 걸러지지 않았다.
+void describe('sanitizeAssistantContent — 시스템 프롬프트 되뱉음', () => {
+  void it('[본문 작성 규칙] 섹션부터 끝까지 제거한다', () => {
+    const out = sanitizeAssistantContent(
+      '오늘도 고생 많으셨어요.\n\n[본문 작성 규칙 — 매우 중요]\n- 본문은 한국어로 작성하며, 가벼운 마크다운을 쓸 수 있습니다.',
+    );
+    assert.equal(out, '오늘도 고생 많으셨어요.');
+  });
+
+  void it('프롬프트만 있고 답변이 없으면 빈 본문이 된다', () => {
+    const out = sanitizeAssistantContent(
+      '[본문 작성 규칙 — 매우 중요]\n- 헤딩(#), 구분선(---)은 사용하지 마세요.',
+    );
+    assert.equal(out, '');
+  });
+
+  // 2026-08-12 누출 메시지 실측 구조 — 프롬프트가 맨 앞(0번 줄)부터 시작하고
+  // 맨 뒤에 정상 답변 2문단이 붙어 있었다. "첫 마커부터 끝까지 절단"하면
+  // 답변까지 날아가므로 섹션 단위로만 제거해야 한다.
+  void it('프롬프트가 맨 앞에 있어도 뒤에 붙은 실제 답변은 살린다', () => {
+    const out = sanitizeAssistantContent(
+      [
+        '[본문 작성 규칙 — 매우 중요]',
+        '- 본문은 한국어로 작성하며, 가벼운 마크다운을 쓸 수 있습니다.',
+        '- "카드", "행동 가이드" 같은 라벨 문구를 본문에 적지 마세요.',
+        '',
+        '[사용자 컨텍스트]',
+        '- 부모: 츠 은 (working)',
+        '- 자녀:',
+        '· 째이 — 10개월, female',
+        '1. (cdc · 9개월 발달 마일스톤 · https://example.com) 마일스톤 본문',
+        '',
+        '[답변 형식]',
+        '- 카드 = 별도 도구 호출로 생성되므로 본문에 적지 말 것.',
+        '네, 더 이상 기다리실 필요 없으세요!',
+        '',
+        '즐거운 놀이 시간 보내시길 바라요!',
+      ].join('\n'),
+    );
+    assert.equal(
+      out,
+      '네, 더 이상 기다리실 필요 없으세요!\n\n즐거운 놀이 시간 보내시길 바라요!',
+    );
+  });
+
+  void it('RAG 청크(번호 목록)와 자녀 정보(· 불릿)도 섹션과 함께 제거한다', () => {
+    const out = sanitizeAssistantContent(
+      '[사용자 컨텍스트]\n- 부모: 츠 은\n· 째이 — 10개월\n1. (cdc · 자료) 본문\n실제 답변입니다.',
+    );
+    assert.equal(out, '실제 답변입니다.');
+  });
+
+  void it('[사용자 컨텍스트] 누출도 제거한다', () => {
+    const out = sanitizeAssistantContent(
+      '차분히 안아주세요.\n\n[사용자 컨텍스트]\n- 부모: 성진 (워킹대디)',
+    );
+    assert.equal(out, '차분히 안아주세요.');
+  });
+
+  void it('[원칙]·[답변 형식]·[지식 베이스 인용 규칙] 섹션도 제거한다', () => {
+    for (const marker of ['[원칙]', '[답변 형식]', '[지식 베이스 인용 규칙]']) {
+      const out = sanitizeAssistantContent(`괜찮아요.\n\n${marker}\n- 지시문`);
+      assert.equal(out, '괜찮아요.', `marker=${marker}`);
+    }
+  });
+
+  void it('정상 본문의 [참고 자료 N] 인용 표기는 기존대로 토큰만 지운다', () => {
+    // '[참고 자료]'를 절단 마커에 넣으면 정상 답변이 통째로 잘린다 → 제외 확인.
+    const out = sanitizeAssistantContent(
+      '수면 루틴을 지켜주세요. [참고 자료 1] 오늘도 응원해요.',
+    );
+    assert.equal(out, '수면 루틴을 지켜주세요. 오늘도 응원해요.');
+  });
+});
+
+void describe('containsSystemPromptLeak', () => {
+  void it('프롬프트 섹션 헤더가 있으면 true', () => {
+    assert.equal(
+      containsSystemPromptLeak('안녕하세요.\n[본문 작성 규칙 — 매우 중요]'),
+      true,
+    );
+  });
+
+  void it('정상 본문이면 false', () => {
+    assert.equal(
+      containsSystemPromptLeak('오늘도 차근차근 해봐요. [참고 자료 1]'),
+      false,
+    );
+  });
+
+  void it('연속 호출해도 결과가 흔들리지 않는다 (정규식 lastIndex 상태 없음)', () => {
+    const leaked = '[사용자 컨텍스트]\n- 부모: 성진';
+    assert.equal(containsSystemPromptLeak(leaked), true);
+    assert.equal(containsSystemPromptLeak(leaked), true);
   });
 });
 
