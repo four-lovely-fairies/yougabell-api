@@ -1,4 +1,51 @@
-import { SYSTEM_PROMPT_LEAK_PATTERN } from '../ai/prompts/chat-system';
+import {
+  SYSTEM_PROMPT_LEAK_PATTERN,
+  SYSTEM_PROMPT_SECTION_MARKERS,
+} from '../ai/prompts/chat-system';
+
+/** `- ` · `· ` · `* ` · `1. ` · `1) ` — 프롬프트 섹션 본문의 형태. */
+const LIST_LINE = /^(?:[-*·]|\d+[.)])\s/;
+
+/**
+ * 시스템 프롬프트 섹션만 골라 제거한다. **섹션 뒤에 이어지는 실제 답변은 살린다.**
+ *
+ * 2026-08-12 누출 메시지를 실측해보니 구조가 일정했다:
+ *   `[헤더]` → 리스트/공백 줄 반복 → ... → **리스트가 아닌 산문 줄부터가 진짜 답변**
+ * 실제로 그 메시지도 프롬프트 3,557자 뒤에 정상 답변 161자가 붙어 있었다.
+ *
+ * 그래서 "첫 마커부터 끝까지 절단"하면 답변까지 날아간다. 헤더를 만나면 그
+ * 섹션(리스트·공백 줄)만 먹고, 산문 줄을 만나는 순간 제거를 멈춘다.
+ *
+ * 한계: 모델이 지시문을 **산문 형태로 풀어 쓰면** 이 규칙으로는 못 잡는다.
+ * 그래서 `containsSystemPromptLeak` 감지·경고·카드 추출 차단을 함께 둔다.
+ */
+function stripPromptSections(raw: string): string {
+  const kept: string[] = [];
+  let inSection = false;
+
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    const isHeader = SYSTEM_PROMPT_SECTION_MARKERS.some((marker) =>
+      trimmed.startsWith(marker),
+    );
+
+    if (isHeader) {
+      inSection = true;
+      continue;
+    }
+    if (!inSection) {
+      kept.push(line);
+      continue;
+    }
+    // 섹션 안 — 리스트·공백 줄은 프롬프트 본문이므로 버린다.
+    if (trimmed === '' || LIST_LINE.test(trimmed)) continue;
+    // 산문 줄 = 섹션 종료. 여기부터가 실제 답변.
+    inSection = false;
+    kept.push(line);
+  }
+
+  return kept.join('\n');
+}
 
 /**
  * 모델 응답에서 "사용자에게 절대 보이면 안 되는 것"을 걷어낸다.
@@ -11,12 +58,8 @@ import { SYSTEM_PROMPT_LEAK_PATTERN } from '../ai/prompts/chat-system';
  * 달라졌고, 파일 400줄 한도(AGENTS.md)도 함께 고려했다.
  */
 export function sanitizeAssistantContent(raw: string): string {
-  let text = raw;
-
-  // 1) 시스템 프롬프트 섹션 헤더가 나오면 그 지점부터 끝까지 버린다.
-  //    헤더 앞의 정상 답변(있다면)은 살린다.
-  const leakAt = text.search(SYSTEM_PROMPT_LEAK_PATTERN);
-  if (leakAt >= 0) text = text.slice(0, leakAt);
+  // 1) 시스템 프롬프트 섹션 제거 (뒤에 붙은 실제 답변은 보존).
+  let text = stripPromptSections(raw);
 
   // 2) 구조 블록(cards:/type:/content:/items: 로 시작하는 줄) 누출 제거.
   // 본문 "맨 앞"에서 시작하는 경우(선행 개행 없음)까지 잡도록 `^|\n`로 앵커링하고,
