@@ -48,6 +48,7 @@ model User {
   chatSessions                ChatSession[]
   weeklyReports               WeeklyReport[]
   consents                    UserConsent[]
+  inquiries                   Inquiry[]
 
   @@index([deletedAt])
 }
@@ -223,6 +224,7 @@ enum NotificationType {
   mental_check_reminder
   chat_follow_up
   system_notice
+  inquiry_answered
 }
 
 enum NotificationActionType {
@@ -242,6 +244,7 @@ enum NotificationTargetType {
   child
   chat_session
   url
+  inquiry
 }
 
 enum NotificationPriority {
@@ -519,6 +522,52 @@ model MissionFeedbackKeyword {
 
   @@unique([feedbackId, rank])
   @@index([keyword])
+}
+
+// ============================================================
+// Inquiry (docs/features/20260819-inquiry.md)
+// ============================================================
+
+/// 1:1 문의. v1은 **질문 1 + 답변 1**의 단일 Q&A이며, 재질문은 새 문의로 접수한다.
+/// 스레드형 대화가 필요해지면 InquiryMessage를 분리하고 기존 행을 첫 두 메시지로 옮긴다.
+model Inquiry {
+  id           String           @id @default(uuid()) @db.Uuid
+  userId       String           @db.Uuid
+  /// 선택 입력. 운영자 트리아지 보조용이며 미분류 제출을 허용한다.
+  category     InquiryCategory?
+  title        String
+  body         String
+  /// 답변 받을 이메일. 기본값은 로그인 이메일이지만 사용자가 바꿀 수 있어 별도 보관한다.
+  contactEmail String?
+  status       InquiryStatus    @default(received)
+
+  /// 운영자 답변. status가 answered일 때만 채워진다.
+  answerBody String?
+  answeredAt DateTime?
+  /// 답변한 운영자의 Supabase auth.users.id. 운영자는 도메인 User가 아닐 수 있어 FK를 두지 않는다.
+  answeredBy String?   @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+enum InquiryCategory {
+  service_error // 오류·장애
+  account // 계정·로그인
+  content // 콘텐츠·미션·로드맵
+  suggestion // 개선 제안
+  etc // 기타
+}
+
+enum InquiryStatus {
+  received // 접수됨
+  in_progress // 확인 중
+  answered // 답변 완료
 }
 
 // ============================================================
