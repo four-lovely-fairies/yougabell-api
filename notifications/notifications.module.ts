@@ -19,5 +19,7 @@ import { PushNotificationService } from './push-notification.service';
     NotificationDispatchService,
     PushNotificationService,
   ],
+  // 문의 답변 알림 등 다른 모듈에서도 푸시를 보낸다.
+  exports: [PushNotificationService],
 })
 export class NotificationsModule {}

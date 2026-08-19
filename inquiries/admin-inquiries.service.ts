@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushNotificationService } from '../notifications/push-notification.service';
 import type {
   AdminInquiryDetailDto,
   AdminInquiryListItemDto,
@@ -12,6 +13,14 @@ import { assertAnswerBodyPresent } from './inquiries.service';
 
 const OPEN_STATUSES = ['received', 'in_progress'] as const;
 
+const NOTIFICATION_TITLE = '문의에 답변이 등록되었어요';
+const NOTIFICATION_BODY = '보내주신 문의에 답변이 도착했습니다. 확인해 보세요.';
+
+/** 알림 탭 시 이동할 web 경로. mobile은 actionType 'url' + targetUrl로 처리한다. */
+function inquiryPath(inquiryId: string): string {
+  return `/settings/inquiries/${inquiryId}`;
+}
+
 const USER_CONTEXT_SELECT = {
   name: true,
   onboardedAt: true,
@@ -21,7 +30,12 @@ const USER_CONTEXT_SELECT = {
 
 @Injectable()
 export class AdminInquiriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(AdminInquiriesService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pushNotifications: PushNotificationService,
+  ) {}
 
   /**
    * GET /admin/inquiries — 미답변 우선, 그 안에서 오래 기다린 순.
@@ -114,6 +128,8 @@ export class AdminInquiriesService {
       body: inquiry.body,
       contactEmail: inquiry.contactEmail,
       answerBody: inquiry.answerBody,
+      privacyConsentAgreedAt: inquiry.privacyConsentAgreedAt.toISOString(),
+      privacyConsentVersion: inquiry.privacyConsentVersion,
       userId: inquiry.userId,
       userName: inquiry.user.name,
       userOnboardedAt: inquiry.user.onboardedAt?.toISOString() ?? null,
@@ -171,17 +187,41 @@ export class AdminInquiriesService {
           data: {
             userId: existing.userId,
             type: 'inquiry_answered',
-            title: '문의에 답변이 등록되었어요',
-            body: '보내주신 문의에 답변이 도착했습니다. 확인해 보세요.',
+            title: NOTIFICATION_TITLE,
+            body: NOTIFICATION_BODY,
             actionType: 'url',
             targetType: 'inquiry',
             targetId: inquiryId,
-            targetUrl: `/settings/inquiries/${inquiryId}`,
+            targetUrl: inquiryPath(inquiryId),
             priority: 'normal',
           },
         });
       }
     });
+
+    // 푸시는 트랜잭션 밖에서 보낸다 — 외부 호출(Expo) 실패가 답변 저장을 되돌리면 안 된다.
+    // 인앱 알림은 이미 커밋됐으므로 푸시가 실패해도 사용자는 앱에서 답변을 확인할 수 있다.
+    if (isFirstAnswer) {
+      try {
+        await this.pushNotifications.sendToUser({
+          userId: existing.userId,
+          title: NOTIFICATION_TITLE,
+          body: NOTIFICATION_BODY,
+          data: {
+            actionType: 'url',
+            targetType: 'inquiry',
+            targetId: inquiryId,
+            targetUrl: inquiryPath(inquiryId),
+          },
+        });
+      } catch (error) {
+        this.logger.warn(
+          `문의 답변 푸시 발송 실패 (inquiryId=${inquiryId}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
 
     return this.getInquiry(inquiryId);
   }
