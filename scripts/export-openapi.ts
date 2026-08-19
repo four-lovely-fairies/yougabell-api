@@ -1,3 +1,4 @@
+import 'dotenv/config'; // AppModule 생성 시 Guard가 SUPABASE_JWKS_URL을 읽는다 (NestJS 기본은 .env 미로드)
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { mkdirSync, writeFileSync } from 'node:fs';
