@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { InquiryCategory, InquiryStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  Equals,
+  IsBoolean,
   IsEmail,
   IsIn,
   IsInt,
@@ -60,6 +62,15 @@ export class CreateInquiryDto {
   @IsEmail()
   @MaxLength(254)
   contactEmail?: string;
+
+  @ApiProperty({
+    example: true,
+    description:
+      '문의 처리 목적의 개인정보 수집·이용 동의. true가 아니면 400 — 동의 없이는 접수하지 않는다.',
+  })
+  @IsBoolean()
+  @Equals(true)
+  privacyConsent!: boolean;
 }
 
 export class ListInquiriesDto {
@@ -123,4 +134,13 @@ export class InquiryResponseDto extends InquiryListItemDto {
 
   @ApiProperty({ type: String, nullable: true })
   answerBody!: string | null;
+
+  @ApiProperty({
+    format: 'date-time',
+    description: '개인정보 수집·이용 동의 시각',
+  })
+  privacyConsentAgreedAt!: string;
+
+  @ApiProperty({ example: '2026-08-19', description: '동의 문구 버전' })
+  privacyConsentVersion!: string;
 }

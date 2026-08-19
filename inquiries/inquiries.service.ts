@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Inquiry, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { INQUIRY_PRIVACY_CONSENT_VERSION } from './inquiry.constants';
 import type {
   CreateInquiryDto,
   InquiryListItemDto,
@@ -47,6 +48,8 @@ export class InquiriesService {
         title: dto.title.trim(),
         body: dto.body.trim(),
         contactEmail: dto.contactEmail?.trim() ?? fallbackEmail ?? null,
+        // DTO가 true만 통과시키므로 여기 도달했다면 동의를 받은 것이다.
+        privacyConsentVersion: INQUIRY_PRIVACY_CONSENT_VERSION,
       },
     });
 
@@ -125,6 +128,8 @@ export function toInquiryResponse(inquiry: Inquiry): InquiryResponseDto {
     body: inquiry.body,
     contactEmail: inquiry.contactEmail,
     answerBody: inquiry.answerBody,
+    privacyConsentAgreedAt: inquiry.privacyConsentAgreedAt.toISOString(),
+    privacyConsentVersion: inquiry.privacyConsentVersion,
   };
 }
 

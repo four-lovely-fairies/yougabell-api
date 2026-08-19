@@ -547,6 +547,13 @@ model Inquiry {
   /// 답변한 운영자의 Supabase auth.users.id. 운영자는 도메인 User가 아닐 수 있어 FK를 두지 않는다.
   answeredBy String?   @db.Uuid
 
+  /// 문의 처리 목적의 개인정보 수집·이용 동의 기록.
+  /// 문의 본문·이메일은 개인정보처리방침 §2 "처리하는 개인정보의 항목"에 없던 항목이라
+  /// 제출 시점에 별도 동의를 받고 그 증적을 문의 행에 함께 남긴다 (입증 책임은 사업자에게 있다).
+  /// 동의 없이는 생성되지 않으므로 NOT NULL이다.
+  privacyConsentAgreedAt DateTime @default(now())
+  privacyConsentVersion  String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
