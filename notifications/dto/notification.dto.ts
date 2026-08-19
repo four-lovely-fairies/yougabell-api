@@ -1,4 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
+import type {
+  NotificationActionType,
+  NotificationPriority,
+  NotificationTargetType,
+  NotificationType,
+} from '@prisma/client';
 
 const NOTIFICATION_TYPES = [
   'mission_reminder',
@@ -8,7 +14,8 @@ const NOTIFICATION_TYPES = [
   'mental_check_reminder',
   'chat_follow_up',
   'system_notice',
-] as const;
+  'inquiry_answered',
+] as const satisfies NotificationType[];
 const NOTIFICATION_ACTION_TYPES = [
   'none',
   'open_home',
@@ -17,7 +24,7 @@ const NOTIFICATION_ACTION_TYPES = [
   'open_chat',
   'open_report',
   'url',
-] as const;
+] as const satisfies NotificationActionType[];
 const NOTIFICATION_TARGET_TYPES = [
   'mission',
   'mission_execution',
@@ -25,8 +32,12 @@ const NOTIFICATION_TARGET_TYPES = [
   'child',
   'chat_session',
   'url',
-] as const;
-const NOTIFICATION_PRIORITIES = ['normal', 'high'] as const;
+  'inquiry',
+] as const satisfies NotificationTargetType[];
+const NOTIFICATION_PRIORITIES = [
+  'normal',
+  'high',
+] as const satisfies NotificationPriority[];
 
 export class NotificationListItemDto {
   @ApiProperty({ format: 'uuid' })
