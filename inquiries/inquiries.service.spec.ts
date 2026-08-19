@@ -5,6 +5,7 @@ import {
   MAX_OPEN_INQUIRIES,
   assertAnswerBodyPresent,
 } from './inquiries.service';
+import { INQUIRY_PRIVACY_CONSENT_VERSION } from './inquiry.constants';
 
 type PrismaArg = ConstructorParameters<typeof InquiriesService>[0];
 
@@ -21,6 +22,7 @@ void describe('InquiriesService', () => {
         service.createInquiry('user-1', {
           title: '제목',
           body: '열 글자가 넘는 문의 본문입니다.',
+          privacyConsent: true,
         }),
       (error: unknown) => {
         assert.equal(getErrorCode(error), 'TOO_MANY_OPEN_INQUIRIES');
@@ -41,6 +43,7 @@ void describe('InquiriesService', () => {
     await service.createInquiry('user-1', {
       title: '  제목  ',
       body: '  열 글자가 넘는 문의 본문입니다.  ',
+      privacyConsent: true,
     });
 
     assert.equal(created.length, 1);
@@ -56,11 +59,33 @@ void describe('InquiriesService', () => {
 
     await service.createInquiry(
       'user-1',
-      { title: '제목', body: '열 글자가 넘는 문의 본문입니다.' },
+      {
+        title: '제목',
+        body: '열 글자가 넘는 문의 본문입니다.',
+        privacyConsent: true,
+      },
       'parent@example.com',
     );
 
     assert.equal(created[0].contactEmail, 'parent@example.com');
+  });
+
+  void it('동의 버전을 문의 행에 함께 남긴다', async () => {
+    const created: Record<string, unknown>[] = [];
+    const service = new InquiriesService(
+      createPrismaStub({ openCount: 0, created }) as unknown as PrismaArg,
+    );
+
+    await service.createInquiry('user-1', {
+      title: '제목',
+      body: '열 글자가 넘는 문의 본문입니다.',
+      privacyConsent: true,
+    });
+
+    assert.equal(
+      created[0].privacyConsentVersion,
+      INQUIRY_PRIVACY_CONSENT_VERSION,
+    );
   });
 
   void it('타인 문의를 조회하면 존재를 노출하지 않고 404를 던진다', async () => {
@@ -119,6 +144,7 @@ function createPrismaStub(options: {
           status: 'received',
           answerBody: null,
           answeredAt: null,
+          privacyConsentAgreedAt: new Date('2026-08-19T00:00:00.000Z'),
           createdAt: new Date('2026-08-19T00:00:00.000Z'),
         });
       },

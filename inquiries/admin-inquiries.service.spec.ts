@@ -3,6 +3,17 @@ import { describe, it } from 'node:test';
 import { AdminInquiriesService } from './admin-inquiries.service';
 
 type PrismaArg = ConstructorParameters<typeof AdminInquiriesService>[0];
+type PushArg = ConstructorParameters<typeof AdminInquiriesService>[1];
+
+function createPushStub(calls: Record<string, unknown>[], fail = false) {
+  return {
+    sendToUser: (input: Record<string, unknown>) => {
+      if (fail) return Promise.reject(new Error('expo down'));
+      calls.push(input);
+      return Promise.resolve({ attempted: 1, sent: 1, failed: 0 });
+    },
+  } as unknown as PushArg;
+}
 
 const ADMIN_ID = 'admin-1';
 const INQUIRY_ID = 'inquiry-1';
@@ -10,7 +21,10 @@ const INQUIRY_ID = 'inquiry-1';
 void describe('AdminInquiriesService.updateInquiry', () => {
   void it('답변 본문을 저장하면 answered로 전환하고 알림을 만든다', async () => {
     const stub = createPrismaStub({ answerBody: null, answeredAt: null });
-    const service = new AdminInquiriesService(stub as unknown as PrismaArg);
+    const service = new AdminInquiriesService(
+      stub as unknown as PrismaArg,
+      createPushStub([]),
+    );
 
     await service.updateInquiry(ADMIN_ID, INQUIRY_ID, {
       answerBody: '  확인 후 수정했습니다.  ',
@@ -34,7 +48,10 @@ void describe('AdminInquiriesService.updateInquiry', () => {
   void it('이미 답변한 문의를 수정하면 알림을 중복 생성하지 않는다', async () => {
     const answeredAt = new Date('2026-08-19T00:00:00.000Z');
     const stub = createPrismaStub({ answerBody: '이전 답변', answeredAt });
-    const service = new AdminInquiriesService(stub as unknown as PrismaArg);
+    const service = new AdminInquiriesService(
+      stub as unknown as PrismaArg,
+      createPushStub([]),
+    );
 
     await service.updateInquiry(ADMIN_ID, INQUIRY_ID, {
       answerBody: '수정한 답변',
@@ -49,7 +66,10 @@ void describe('AdminInquiriesService.updateInquiry', () => {
 
   void it('답변 본문 없이 answered로 전환하면 400을 던진다', async () => {
     const stub = createPrismaStub({ answerBody: null, answeredAt: null });
-    const service = new AdminInquiriesService(stub as unknown as PrismaArg);
+    const service = new AdminInquiriesService(
+      stub as unknown as PrismaArg,
+      createPushStub([]),
+    );
 
     await assert.rejects(
       () => service.updateInquiry(ADMIN_ID, INQUIRY_ID, { status: 'answered' }),
@@ -64,7 +84,10 @@ void describe('AdminInquiriesService.updateInquiry', () => {
 
   void it('상태만 in_progress로 바꾸면 답변 필드를 건드리지 않는다', async () => {
     const stub = createPrismaStub({ answerBody: null, answeredAt: null });
-    const service = new AdminInquiriesService(stub as unknown as PrismaArg);
+    const service = new AdminInquiriesService(
+      stub as unknown as PrismaArg,
+      createPushStub([]),
+    );
 
     await service.updateInquiry(ADMIN_ID, INQUIRY_ID, {
       status: 'in_progress',
@@ -75,9 +98,55 @@ void describe('AdminInquiriesService.updateInquiry', () => {
     assert.equal(stub.notifications.length, 0);
   });
 
+  void it('첫 답변에는 푸시도 보내고, 재수정 시에는 보내지 않는다', async () => {
+    const firstCalls: Record<string, unknown>[] = [];
+    const first = createPrismaStub({ answerBody: null, answeredAt: null });
+    await new AdminInquiriesService(
+      first as unknown as PrismaArg,
+      createPushStub(firstCalls),
+    ).updateInquiry(ADMIN_ID, INQUIRY_ID, { answerBody: '답변' });
+
+    assert.equal(firstCalls.length, 1);
+    assert.equal(firstCalls[0].userId, 'user-1');
+    assert.deepEqual(firstCalls[0].data, {
+      actionType: 'url',
+      targetType: 'inquiry',
+      targetId: INQUIRY_ID,
+      targetUrl: `/settings/inquiries/${INQUIRY_ID}`,
+    });
+
+    const againCalls: Record<string, unknown>[] = [];
+    const again = createPrismaStub({
+      answerBody: '이전 답변',
+      answeredAt: new Date('2026-08-19T00:00:00.000Z'),
+    });
+    await new AdminInquiriesService(
+      again as unknown as PrismaArg,
+      createPushStub(againCalls),
+    ).updateInquiry(ADMIN_ID, INQUIRY_ID, { answerBody: '수정' });
+
+    assert.equal(againCalls.length, 0);
+  });
+
+  void it('푸시 발송이 실패해도 답변 저장은 되돌리지 않는다', async () => {
+    const stub = createPrismaStub({ answerBody: null, answeredAt: null });
+    const service = new AdminInquiriesService(
+      stub as unknown as PrismaArg,
+      createPushStub([], true),
+    );
+
+    await service.updateInquiry(ADMIN_ID, INQUIRY_ID, { answerBody: '답변' });
+
+    assert.equal(stub.updates.length, 1);
+    assert.equal(stub.notifications.length, 1);
+  });
+
   void it('없는 문의를 수정하면 404를 던진다', async () => {
     const stub = createPrismaStub(null);
-    const service = new AdminInquiriesService(stub as unknown as PrismaArg);
+    const service = new AdminInquiriesService(
+      stub as unknown as PrismaArg,
+      createPushStub([]),
+    );
 
     await assert.rejects(
       () => service.updateInquiry(ADMIN_ID, INQUIRY_ID, { status: 'answered' }),
@@ -149,6 +218,8 @@ function buildDetailRow(existing: NonNullable<ExistingInquiry>) {
     status: 'answered',
     answerBody: existing.answerBody,
     answeredAt: existing.answeredAt,
+    privacyConsentAgreedAt: new Date('2026-08-18T00:00:00.000Z'),
+    privacyConsentVersion: '2026-08-19',
     createdAt: new Date('2026-08-18T00:00:00.000Z'),
     user: {
       name: '테스트',
