@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -48,6 +49,16 @@ export class UsersController {
   })
   async getMe(@CurrentUserId() userId: string) {
     return this.onboarding.getMe(this.prisma, userId);
+  }
+
+  @Post('notification-prompt-exposure')
+  @ApiOperation({
+    summary: '놀이 완료 알림 권한 안내를 계정당 최초 1회로 예약',
+    description:
+      '모달을 실제로 띄우기 직전에 호출한다. 동시 요청에도 최초 한 요청만 shouldShow=true를 받는다.',
+  })
+  async claimNotificationPromptExposure(@CurrentUserId() userId: string) {
+    return this.users.claimNotificationPromptExposure(userId);
   }
 
   @Patch('parent')
