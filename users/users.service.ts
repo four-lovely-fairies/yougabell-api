@@ -27,6 +27,20 @@ export class UsersService {
     private readonly onboarding: OnboardingService,
   ) {}
 
+  /** POST /me/notification-prompt-exposure — 계정 기준 최초 실제 모달 노출을 원자적으로 예약한다. */
+  async claimNotificationPromptExposure(userId: string) {
+    const result = await this.prisma.user.updateMany({
+      where: {
+        id: userId,
+        deletedAt: null,
+        notificationPromptShownAt: null,
+      },
+      data: { notificationPromptShownAt: new Date() },
+    });
+
+    return { shouldShow: result.count === 1 };
+  }
+
   /** PATCH /me/parent — 본인 정보 부분 갱신. */
   async updateParent(userId: string, dto: UpdateParentDto) {
     const data: Prisma.UserUpdateInput = {};
