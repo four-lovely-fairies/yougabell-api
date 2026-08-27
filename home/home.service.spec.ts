@@ -46,6 +46,16 @@ void describe('HomeService', () => {
         },
       ],
       missionCounts: [{ missionId: 'm1', _count: { _all: 1 } }],
+      completedExecutions: [
+        {
+          startedAt: new Date('2026-07-22T12:00:00+09:00'),
+          completedAt: new Date('2026-07-22T12:10:00+09:00'),
+        },
+        {
+          startedAt: new Date('2026-07-23T12:00:00+09:00'),
+          completedAt: new Date('2026-07-23T12:10:00+09:00'),
+        },
+      ],
     });
     const service = new HomeService(prisma as never);
 
@@ -54,6 +64,7 @@ void describe('HomeService', () => {
     assert.equal(result.recommendedMission?.id, 'm2');
     assert.equal(result.recommendedMission?.title, '공유 추천 놀이');
     assert.equal(result.recommendedMission?.status, 'not_started');
+    assert.equal(result.playStreakDays, 2);
   });
 
   void it('creates a new mood check when today has no record', async () => {
@@ -76,6 +87,44 @@ void describe('HomeService', () => {
     assert.equal(result.emoji, '😊');
     assert.match(result.checkedAt, /2026-05-28T/);
     assert.equal(createCalls.length, 1);
+  });
+
+  void it('returns the completed play count from the same weekly report as the reaction rate', async () => {
+    const weeklyReportQueries: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [
+        {
+          id: 'child-1',
+          userId: 'user-1',
+          name: '김유스',
+          birthDate: new Date('2024-07-24T00:00:00+09:00'),
+          displayOrder: 0,
+          createdAt: new Date('2026-05-01T00:00:00+09:00'),
+        },
+      ],
+      weeklyReport: {
+        id: 'report-1',
+        weekStart: new Date('2026-07-13T00:00:00+09:00'),
+        weekEnd: new Date('2026-07-19T00:00:00+09:00'),
+        totalMissionDurationSeconds: 1200,
+        childPositiveReactionRate: 0.75,
+        days: [{ completedCount: 2 }, { completedCount: 1 }],
+      },
+      onWeeklyReportFind: (args) => weeklyReportQueries.push(args),
+    });
+    const service = new HomeService(prisma as never);
+
+    const result = await service.getHome('user-1', { date: '2026-07-24' });
+
+    assert.equal(result.reportSummary?.completedPlayCount, 3);
+    assert.equal(result.reportSummary?.childPositiveReactionRate, 75);
+    assert.deepEqual(weeklyReportQueries[0], {
+      where: {
+        childId: 'child-1',
+        weekStart: new Date('2026-07-12T15:00:00.000Z'),
+      },
+      include: { days: true },
+    });
   });
 
   void it('updates the latest mood check when today already has a record', async () => {
@@ -157,6 +206,19 @@ function createPrismaStub(options: {
       sources: Array<{ citation?: string }>;
     };
   } | null;
+  completedExecutions?: Array<{
+    startedAt: Date;
+    completedAt: Date | null;
+  }>;
+  weeklyReport?: {
+    id: string;
+    weekStart: Date;
+    weekEnd: Date;
+    totalMissionDurationSeconds: number;
+    childPositiveReactionRate: number;
+    days: Array<{ completedCount: number }>;
+  } | null;
+  onWeeklyReportFind?: (args: unknown) => void;
   existingCheck?: {
     id: string;
     userId: string;
@@ -195,12 +257,18 @@ function createPrismaStub(options: {
         }),
     },
     missionExecution: {
-      findMany: () => Promise.resolve([]),
+      findMany: (args: { where?: { status?: unknown } }) =>
+        Promise.resolve(
+          args.where?.status ? (options.completedExecutions ?? []) : [],
+        ),
       findFirst: () => Promise.resolve(options.currentDayExecution ?? null),
       groupBy: () => Promise.resolve(options.missionCounts ?? []),
     },
     weeklyReport: {
-      findFirst: () => Promise.resolve(null),
+      findFirst: (args: unknown) => {
+        options.onWeeklyReportFind?.(args);
+        return Promise.resolve(options.weeklyReport ?? null);
+      },
     },
     growthStage: {
       findFirst: () => Promise.resolve(null),
