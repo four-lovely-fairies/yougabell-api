@@ -61,6 +61,18 @@ export class UsersController {
     return this.users.claimNotificationPromptExposure(userId);
   }
 
+  @Post('home-notification-nudge-exposure')
+  @ApiOperation({
+    summary: '홈 첫 진입 알림 유도 문구를 계정당 최초 1회로 예약',
+    description:
+      '홈을 처음 불러올 때 호출한다. 동시 요청에도 최초 한 요청만 shouldShow=true를 받는다.',
+  })
+  async claimHomeNotificationNudgeExposure(
+    @CurrentUserId() userId: string,
+  ) {
+    return this.users.claimHomeNotificationNudgeExposure(userId);
+  }
+
   @Patch('parent')
   @ApiOperation({
     summary: '본인 정보 수정 (Figma 2395:9320)',
