@@ -41,20 +41,6 @@ export class UsersService {
     return { shouldShow: result.count === 1 };
   }
 
-  /** POST /me/home-notification-nudge-exposure — 홈 첫 진입 알림 유도 문구 노출을 원자적으로 예약한다. */
-  async claimHomeNotificationNudgeExposure(userId: string) {
-    const result = await this.prisma.user.updateMany({
-      where: {
-        id: userId,
-        deletedAt: null,
-        homeNotificationNudgeShownAt: null,
-      },
-      data: { homeNotificationNudgeShownAt: new Date() },
-    });
-
-    return { shouldShow: result.count === 1 };
-  }
-
   /** PATCH /me/parent — 본인 정보 부분 갱신. */
   async updateParent(userId: string, dto: UpdateParentDto) {
     const data: Prisma.UserUpdateInput = {};

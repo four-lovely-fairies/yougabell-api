@@ -17,28 +17,26 @@ datasource db {
 // ============================================================
 
 model User {
-  id                           String            @id @db.Uuid // = Supabase auth.users.id (lazy-create on first authed request)
-  name                         String
+  id                        String            @id @db.Uuid // = Supabase auth.users.id (lazy-create on first authed request)
+  name                      String
   // App Store 심사(5.1.1): 부모 생년월일·성별은 핵심 기능에 불필요하므로 선택 입력(nullable).
-  birthDate                    DateTime?         @db.Date
-  gender                       Gender?
-  workStatus                   WorkStatus? // 온보딩 v2: 선택 입력 (docs/features/20260508-onboarding.md)
+  birthDate                 DateTime?         @db.Date
+  gender                    Gender?
+  workStatus                WorkStatus? // 온보딩 v2: 선택 입력 (docs/features/20260508-onboarding.md)
   // 온보딩 v3: 단일 알림 시간대 선택 (Figma 2146:4530). v2 매트릭스(UserAppUsageSlot) 폐기.
   // 설정 v1(docs/features/20260519-settings.md): NotificationPreference 모델로 종류별 관리 시작. 본 두 필드는 deprecated 예정 — onboarding 호환 위해 임시 보존.
-  notificationSlot             NotificationSlot?
-  notificationTime             String? // "HH:MM" — custom일 때 필수, preset일 때 선택(미지정 시 시간대 디폴트)
+  notificationSlot          NotificationSlot?
+  notificationTime          String? // "HH:MM" — custom일 때 필수, preset일 때 선택(미지정 시 시간대 디폴트)
   // 놀이 완료 뒤 알림 권한 안내를 계정당 한 번만 보이기 위한 실제 노출 시각.
-  notificationPromptShownAt    DateTime?
-  // 홈 첫 진입의 "편한 시간에 알림 받기" 문구를 계정당 한 번만 보이기 위한 노출 시각.
-  homeNotificationNudgeShownAt DateTime?
-  interests                    InterestId[]      @default([]) // 설정/온보딩 — 최대 3개(app-level 검증)
-  onboardedAt                  DateTime? // 온보딩 완료 시각 (null = 미완료)
-  parentingStyleId             String? // future — see docs/schema/10-parenting-style.md
+  notificationPromptShownAt DateTime?
+  interests                 InterestId[]      @default([]) // 설정/온보딩 — 최대 3개(app-level 검증)
+  onboardedAt               DateTime? // 온보딩 완료 시각 (null = 미완료)
+  parentingStyleId          String? // future — see docs/schema/10-parenting-style.md
   // 계정 탈퇴 (docs/features/20260519-settings.md §3.1): soft delete + 30일 grace + cron hard delete
-  deletedAt                    DateTime?
-  deletionReason               String?
-  createdAt                    DateTime          @default(now())
-  updatedAt                    DateTime          @updatedAt
+  deletedAt                 DateTime?
+  deletionReason            String?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
 
   children                    Child[]
   notifications               Notification[]
