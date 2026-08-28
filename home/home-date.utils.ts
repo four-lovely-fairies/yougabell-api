@@ -13,6 +13,11 @@ export type HomeWeekInfo = {
   days: HomeWeekDay[];
 };
 
+type CompletedMissionExecution = {
+  startedAt: Date;
+  completedAt: Date | null;
+};
+
 const WEEKDAY_LABELS: WeekdayLabel[] = [
   '월',
   '화',
@@ -87,8 +92,42 @@ export function getAgeLabel(birthDate: Date, today: Date): string {
   return `${getAgeMonths(birthDate, today)}개월`;
 }
 
+/**
+ * 서울 날짜 기준 완료 놀이 연속 일수.
+ * 오늘 완료 기록이 없으면 어제부터 세어 아직 이어갈 수 있는 streak를 유지한다.
+ */
+export function getPlayStreakDays(
+  executions: CompletedMissionExecution[],
+  today: Date,
+): number {
+  const completedDateKeys = new Set(
+    executions.map((execution) =>
+      toSeoulDateKey(execution.completedAt ?? execution.startedAt),
+    ),
+  );
+  const todayKey = toSeoulDateKey(today);
+  const cursor = new Date(`${todayKey}T00:00:00Z`);
+
+  if (!completedDateKeys.has(todayKey)) {
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+
+  let streak = 0;
+  while (completedDateKeys.has(toDateOnly(cursor))) {
+    streak += 1;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+
+  return streak;
+}
+
 export function toDateOnly(date: Date): string {
   return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+}
+
+export function toSeoulDateKey(date: Date): string {
+  const seoul = new Date(date.getTime() + SEOUL_OFFSET_MS);
+  return toDateOnly(seoul);
 }
 
 function toSeoulDateParts(date: Date) {

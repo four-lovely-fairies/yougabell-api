@@ -131,6 +131,9 @@ export class HomeReportSummaryDto {
   @ApiProperty({ example: '지난주 아이와 함께한 놀이 시간' })
   title!: string;
 
+  @ApiProperty({ example: 4, minimum: 0 })
+  completedPlayCount!: number;
+
   @ApiProperty({ example: 4620, minimum: 0 })
   totalDurationSeconds!: number;
 
@@ -187,6 +190,9 @@ export class HomeDashboardDto {
 
   @ApiProperty({ type: HomeWeekDto })
   week!: HomeWeekDto;
+
+  @ApiProperty({ example: 3, minimum: 0 })
+  playStreakDays!: number;
 
   @ApiProperty({ type: HomeRecommendedMissionDto, nullable: true })
   recommendedMission!: HomeRecommendedMissionDto | null;

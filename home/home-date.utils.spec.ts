@@ -4,6 +4,7 @@ import {
   formatDurationLabel,
   getAgeMonths,
   getAgeLabel,
+  getPlayStreakDays,
   getPreviousCompletedWeekStart,
   getWeekInfo,
   toDateOnly,
@@ -77,4 +78,35 @@ void describe('home date utilities', () => {
       '12개월',
     );
   });
+
+  void it('counts a play streak across week boundaries using Seoul dates', () => {
+    const executions = [
+      completedAt('2026-05-02T16:00:00Z'), // 5/3 01:00 KST
+      completedAt('2026-05-03T15:30:00Z'), // 5/4 00:30 KST
+      completedAt('2026-05-04T13:00:00Z'), // 5/4 duplicate
+      completedAt('2026-05-04T16:00:00Z'), // 5/5 01:00 KST
+    ];
+
+    assert.equal(
+      getPlayStreakDays(executions, new Date('2026-05-05T12:00:00+09:00')),
+      3,
+    );
+  });
+
+  void it('keeps the streak through today when the latest play was yesterday', () => {
+    const executions = [
+      completedAt('2026-05-03T12:00:00+09:00'),
+      completedAt('2026-05-04T12:00:00+09:00'),
+    ];
+
+    assert.equal(
+      getPlayStreakDays(executions, new Date('2026-05-05T12:00:00+09:00')),
+      2,
+    );
+  });
 });
+
+function completedAt(value: string) {
+  const date = new Date(value);
+  return { startedAt: date, completedAt: date };
+}

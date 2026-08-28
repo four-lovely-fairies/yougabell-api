@@ -12,8 +12,10 @@ import {
   getAgeLabel,
   getAgeMonths,
   getPreviousCompletedWeekStart,
+  getPlayStreakDays,
   getWeekInfo,
   toDateOnly,
+  toSeoulDateKey,
 } from './home-date.utils';
 import {
   HomeChild,
@@ -63,11 +65,17 @@ export class HomeService {
     const weekInfo = getWeekInfo(today);
     const weekStart = new Date(`${weekInfo.days[0]?.date}T00:00:00+09:00`);
     const weekEnd = new Date(`${weekInfo.days[6]?.date}T23:59:59.999+09:00`);
-    const previousWeekStart = getPreviousCompletedWeekStart(today);
+    const previousWeekStartKey = toDateOnly(
+      getPreviousCompletedWeekStart(today),
+    );
+    const previousWeekStart = new Date(
+      `${previousWeekStartKey}T00:00:00+09:00`,
+    );
 
     const [
       batteryChecks,
       weeklyExecutions,
+      completedExecutions,
       latestWeeklyReport,
       growthStage,
       recommendedMission,
@@ -87,11 +95,22 @@ export class HomeService {
           startedAt: { gte: weekStart, lte: weekEnd },
         },
       }),
+      this.prisma.missionExecution.findMany({
+        where: {
+          childId: selectedChild.id,
+          status: { in: COMPLETED_MISSION_STATUSES },
+        },
+        select: {
+          startedAt: true,
+          completedAt: true,
+        },
+      }),
       this.prisma.weeklyReport.findFirst({
         where: {
           childId: selectedChild.id,
           weekStart: previousWeekStart,
         },
+        include: { days: true },
       }),
       this.prisma.growthStage.findFirst({
         where: {
@@ -149,6 +168,7 @@ export class HomeService {
           };
         }),
       },
+      playStreakDays: getPlayStreakDays(completedExecutions, today),
       recommendedMission,
       growthStage: growthStage
         ? {
@@ -163,6 +183,10 @@ export class HomeService {
             weekStart: toDateOnly(latestWeeklyReport.weekStart),
             weekEnd: toDateOnly(latestWeeklyReport.weekEnd),
             title: '지난주 아이와 함께한 놀이 시간',
+            completedPlayCount: latestWeeklyReport.days.reduce(
+              (total, day) => total + day.completedCount,
+              0,
+            ),
             totalDurationSeconds:
               latestWeeklyReport.totalMissionDurationSeconds,
             totalDurationLabel: formatDurationLabel(
@@ -317,11 +341,6 @@ function toHomeNotification(notification: {
     createdAt: notification.createdAt.toISOString(),
     readAt: notification.readAt?.toISOString() ?? null,
   };
-}
-
-function toSeoulDateKey(date: Date): string {
-  const seoul = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  return toDateOnly(seoul);
 }
 
 function moodEmoji(level: number): string {

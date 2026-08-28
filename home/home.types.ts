@@ -35,6 +35,7 @@ export type HomeDashboard = {
       }
     >;
   };
+  playStreakDays: number;
   recommendedMission: {
     id: string;
     subThemeLabel: string;
@@ -52,6 +53,7 @@ export type HomeDashboard = {
     weekStart: string;
     weekEnd: string;
     title: string;
+    completedPlayCount: number;
     totalDurationSeconds: number;
     totalDurationLabel: string;
     childPositiveReactionRate: number;
