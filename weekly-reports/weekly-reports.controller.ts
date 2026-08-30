@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -10,11 +10,15 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   WeeklyReportCurrentResponseDto,
   WeeklyReportDetailDto,
+  WeeklyReportUnviewedStatusDto,
+  WeeklyReportViewedResponseDto,
 } from './dto/weekly-report-response.dto';
 import { WeeklyReportsService } from './weekly-reports.service';
 import type {
   WeeklyReportCurrentResponse,
   WeeklyReportDetail,
+  WeeklyReportUnviewedStatus,
+  WeeklyReportViewedResponse,
 } from './weekly-reports.types';
 
 @ApiTags('weekly-reports')
@@ -43,6 +47,25 @@ export class WeeklyReportsController {
       childId,
       weekStart,
     });
+  }
+
+  @Get('unviewed-status')
+  @ApiQuery({ name: 'childId', required: false, type: String, format: 'uuid' })
+  @ApiOkResponse({ type: WeeklyReportUnviewedStatusDto })
+  getUnviewedStatus(
+    @CurrentUserId() userId: string,
+    @Query('childId') childId?: string,
+  ): Promise<WeeklyReportUnviewedStatus> {
+    return this.weeklyReportsService.getUnviewedStatus(userId, { childId });
+  }
+
+  @Patch(':id/viewed')
+  @ApiOkResponse({ type: WeeklyReportViewedResponseDto })
+  markViewed(
+    @CurrentUserId() userId: string,
+    @Param('id') reportId: string,
+  ): Promise<WeeklyReportViewedResponse> {
+    return this.weeklyReportsService.markViewed(userId, reportId);
   }
 
   @Get(':id')

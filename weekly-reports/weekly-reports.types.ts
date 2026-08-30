@@ -19,6 +19,14 @@ export type WeeklyReportCurrentResponse = {
   };
 };
 
+export type WeeklyReportUnviewedStatus = {
+  hasUnviewedReport: boolean;
+};
+
+export type WeeklyReportViewedResponse = {
+  viewed: true;
+};
+
 export type WeeklyReportDetail = {
   id: string;
   weekStart: string;

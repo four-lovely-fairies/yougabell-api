@@ -17,6 +17,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   WeeklyReportCurrentResponse,
   WeeklyReportDetail,
+  WeeklyReportUnviewedStatus,
+  WeeklyReportViewedResponse,
 } from '../weekly-reports.types';
 import {
   buildBestMomentRows,
@@ -131,6 +133,52 @@ export class WeeklyReportsService {
     }
 
     return toDetail(report);
+  }
+
+  async getUnviewedStatus(
+    userId: string,
+    query: { childId?: string; today?: Date },
+  ): Promise<WeeklyReportUnviewedStatus> {
+    const weekStartKey = getPreviousCompletedWeekStart(
+      query.today ?? new Date(),
+    );
+    const report = await this.prisma.weeklyReport.findFirst({
+      where: {
+        userId,
+        childId: query.childId,
+        weekStart: new Date(`${weekStartKey}T00:00:00+09:00`),
+        viewedAt: null,
+        child: { deletedAt: null },
+      },
+      select: { id: true },
+    });
+
+    return { hasUnviewedReport: Boolean(report) };
+  }
+
+  async markViewed(
+    userId: string,
+    reportId: string,
+  ): Promise<WeeklyReportViewedResponse> {
+    const result = await this.prisma.weeklyReport.updateMany({
+      where: { id: reportId, userId, viewedAt: null },
+      data: { viewedAt: new Date() },
+    });
+
+    if (result.count === 0) {
+      const report = await this.prisma.weeklyReport.findFirst({
+        where: { id: reportId, userId },
+        select: { id: true },
+      });
+      if (!report) {
+        throw new NotFoundException({
+          code: 'WEEKLY_REPORT_NOT_FOUND',
+          message: 'Weekly report not found.',
+        });
+      }
+    }
+
+    return { viewed: true };
   }
 
   async generateForWeek(input: {

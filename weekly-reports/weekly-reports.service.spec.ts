@@ -32,6 +32,41 @@ function createService(
 }
 
 void describe('WeeklyReportsService', () => {
+  void it('reports an unviewed report only for the current report week', async () => {
+    const report = createReport();
+    const prisma = createPrismaStub({ children: [], report });
+    const service = createService(prisma);
+
+    const result = await service.getUnviewedStatus('user-1', {
+      childId: 'child-1',
+      today: new Date('2026-05-13T12:00:00+09:00'),
+    });
+
+    assert.deepEqual(result, { hasUnviewedReport: true });
+  });
+
+  void it('marks a report as viewed for its owner', async () => {
+    const updates: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [],
+      report: createReport(),
+      onUpdateReports: (args) => updates.push(args),
+    });
+    const service = createService(prisma);
+
+    const result = await service.markViewed('user-1', 'report-1');
+
+    assert.deepEqual(result, { viewed: true });
+    assert.equal(updates.length, 1);
+    assert.deepEqual(updates[0], {
+      where: { id: 'report-1', userId: 'user-1', viewedAt: null },
+      data: { viewedAt: (updates[0] as { data: { viewedAt: Date } }).data.viewedAt },
+    });
+    assert.ok(
+      (updates[0] as { data: { viewedAt: Date } }).data.viewedAt instanceof Date,
+    );
+  });
+
   void it('returns the current weekly report for the default active child', async () => {
     const prisma = createPrismaStub({
       children: [
@@ -709,6 +744,7 @@ function createPrismaStub({
   mentalBatteryChecks = [],
   onCreateReport,
   onCreateNotification,
+  onUpdateReports,
 }: {
   children: Awaited<ReturnType<WeeklyReportsPrisma['child']['findMany']>>;
   report: Awaited<ReturnType<WeeklyReportsPrisma['weeklyReport']['findFirst']>>;
@@ -718,6 +754,7 @@ function createPrismaStub({
   mentalBatteryChecks?: Array<{ level: number }>;
   onCreateReport?: (args: unknown) => void;
   onCreateNotification?: (args: unknown) => void;
+  onUpdateReports?: (args: unknown) => void;
 }): WeeklyReportsPrisma {
   let countCallIndex = 0;
   return {
@@ -726,6 +763,10 @@ function createPrismaStub({
     },
     weeklyReport: {
       findFirst: () => Promise.resolve(report),
+      updateMany: (args: unknown) => {
+        onUpdateReports?.(args);
+        return Promise.resolve({ count: 1 });
+      },
       delete: () => Promise.resolve(undefined),
       create: (args: unknown) => {
         onCreateReport?.(args);

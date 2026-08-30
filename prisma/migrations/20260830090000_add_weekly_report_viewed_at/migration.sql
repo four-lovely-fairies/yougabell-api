@@ -1,0 +1,2 @@
+ALTER TABLE "WeeklyReport"
+ADD COLUMN "viewedAt" TIMESTAMP(3);
