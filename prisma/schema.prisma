@@ -788,6 +788,7 @@ model WeeklyReport {
   aiPromptTokens              Int?
   aiCompletionTokens          Int?
   generatedAt                 DateTime
+  viewedAt                    DateTime?
   createdAt                   DateTime  @default(now())
 
   user            User                         @relation(fields: [userId], references: [id], onDelete: Cascade)

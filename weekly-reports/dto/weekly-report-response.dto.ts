@@ -172,3 +172,13 @@ export class WeeklyReportCurrentResponseDto {
   @ApiProperty({ type: WeeklyReportEmptyStateDto, nullable: true })
   emptyState!: WeeklyReportEmptyStateDto | null;
 }
+
+export class WeeklyReportUnviewedStatusDto {
+  @ApiProperty()
+  hasUnviewedReport!: boolean;
+}
+
+export class WeeklyReportViewedResponseDto {
+  @ApiProperty({ example: true })
+  viewed!: true;
+}
