@@ -53,6 +53,7 @@ pnpm prisma:studio          # Prisma Studio (DB 시각화)
 - **Auth Guard**: Supabase JWT를 `JWT_SECRET`으로 검증. `User` 도메인 행은 첫 호출 시 lazy-create.
 - **OpenAPI**: `@nestjs/swagger`로 스펙 자동 export. 빌드 산출물 또는 `/openapi.json` 노출.
 - **챗봇**: SSE 스트리밍 사용. 카드 단위 chunking.
+- **PR 생성**: `.claude/skills/release/SKILL.md`의 4단계에 따라 실제 개행 here-document로 Markdown 본문을 만들고, 생성/수정 뒤 `gh pr view --json body --jq .body`로 렌더링 전 원문을 반드시 검증한다.
 
 ## 디렉토리 (예정, src 없는 형식)
 

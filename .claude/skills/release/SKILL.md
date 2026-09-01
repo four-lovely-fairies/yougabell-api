@@ -41,7 +41,39 @@ git push origin <현재 브랜치>
 - 보호 브랜치(`main` / `develop`)는 PR 흐름 권장 — 직접 푸시 전 사용자에게 확인
 - 푸시 실패 시 사용자에게 보고하고 중단
 
-## 4단계: 레포별 후속 배포
+## 4단계: PR 생성 및 Markdown 본문 검증
+
+PR이 필요한 브랜치는 실제 개행을 보존하는 here-document로 본문을 만든다.
+JSON 이스케이프 문자열(`\n`)을 `--body`에 전달하면 GitHub에 문자 그대로 저장되므로 사용하지 않는다.
+
+```bash
+gh pr create --base main --head <현재 브랜치> --title "<제목>" --body "$(cat <<'EOF'
+## 변경 사항
+
+- 변경 내용
+
+## 검증
+
+- 실행한 검증 명령과 결과
+
+## 의존성 또는 배포 순서
+
+- 필요한 선행 작업
+EOF
+)"
+```
+
+생성 직후에는 반드시 PR 원문을 읽어 제목·빈 줄·목록이 실제 Markdown 개행으로 출력되는지 확인한다.
+
+```bash
+PR_CHECK_NUMBER="$(gh pr view --json number --jq .number)"
+gh pr view "$PR_CHECK_NUMBER" --json body --jq .body
+```
+
+- 출력에 리터럴 `\n`이 있거나 섹션/목록이 한 줄로 붙어 있으면 즉시 `gh pr edit --body`로 수정한다.
+- PR 본문 수정에도 동일한 here-document 방식을 사용하고, 수정 후 위 검증을 다시 실행한다.
+
+## 5단계: 레포별 후속 배포
 
 각 레포 `AGENTS.md`에 명시된 배포 절차를 따름.
 
@@ -53,7 +85,7 @@ git push origin <현재 브랜치>
 | `yougabell-admin`      | Vercel 자동 배포 (`main` push에 트리거)            |
 | `yougabell-mobile`     | EAS Build (`eas build --platform <ios\|android>`)  |
 
-## 5단계: 결과 보고
+## 6단계: 결과 보고
 
 - 푸시된 커밋 목록 (`git log origin/<base>..HEAD --oneline` 또는 `git log --oneline -n <N>`)
 - 트리거된 배포 (Vercel URL, EAS Build ID 등)
