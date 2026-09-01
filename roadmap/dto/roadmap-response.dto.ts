@@ -61,6 +61,17 @@ export class RoadmapMilestoneItemDto {
   })
   description!: string;
 
+  @ApiProperty({ example: true, description: '해당 자녀의 체크 여부' })
+  completed!: boolean;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: '체크 시각. 미체크면 null.',
+  })
+  completedAt!: string | null;
+
   @ApiProperty({ type: [RoadmapMilestoneSourceDto] })
   sources!: RoadmapMilestoneSourceDto[];
 }

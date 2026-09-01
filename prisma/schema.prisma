@@ -180,10 +180,11 @@ model Child {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  missionExecutions MissionExecution[]
-  notifications     Notification[]
-  weeklyReports     WeeklyReport[]
+  user                 User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  missionExecutions    MissionExecution[]
+  milestoneCompletions ChildMilestoneCompletion[]
+  notifications        Notification[]
+  weeklyReports        WeeklyReport[]
 
   @@index([userId])
   @@index([userId, deletedAt, displayOrder])
@@ -362,10 +363,27 @@ model Milestone {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  category MilestoneCategory @relation(fields: [categoryId], references: [id])
-  sources  MilestoneSource[]
+  category    MilestoneCategory          @relation(fields: [categoryId], references: [id])
+  sources     MilestoneSource[]
+  completions ChildMilestoneCompletion[]
 
   @@index([categoryId, ageMonthsFrom, ageMonthsTo])
+}
+
+model ChildMilestoneCompletion {
+  id          String   @id @default(uuid()) @db.Uuid
+  childId     String   @db.Uuid
+  milestoneId String   @db.Uuid
+  completedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  child     Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  milestone Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, milestoneId])
+  @@index([childId, completedAt])
+  @@index([milestoneId])
 }
 
 model MilestoneSource {

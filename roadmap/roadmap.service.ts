@@ -15,6 +15,7 @@ import {
   type RoadmapCategoryGroup,
   type RoadmapCategoryId,
   type RoadmapResponse,
+  type MilestoneCompletionResponse,
 } from './roadmap.types';
 
 const SOURCE_TOOLTIP_TEXT =
@@ -97,6 +98,20 @@ export class RoadmapService {
       }),
     ]);
 
+    const completions = await this.prisma.childMilestoneCompletion.findMany({
+      where: {
+        childId: child.id,
+        milestoneId: { in: milestones.map((milestone) => milestone.id) },
+      },
+      select: { milestoneId: true, completedAt: true },
+    });
+    const completionByMilestoneId = new Map(
+      completions.map((completion) => [
+        completion.milestoneId,
+        completion.completedAt,
+      ]),
+    );
+
     const categoryById = new Map(categories.map((c) => [c.id, c]));
     const groupedByCategory = new Map<RoadmapCategoryId, typeof milestones>();
     for (const milestone of milestones) {
@@ -117,6 +132,9 @@ export class RoadmapService {
           items: items.map((m) => ({
             id: m.id,
             description: m.description,
+            completed: completionByMilestoneId.has(m.id),
+            completedAt:
+              completionByMilestoneId.get(m.id)?.toISOString() ?? null,
             sources: m.sources.map((s) => ({
               citation: s.citation,
               url: s.url,
@@ -140,6 +158,58 @@ export class RoadmapService {
       monthTabRange: range,
       milestonesByCategory,
       sourceTooltip: { text: SOURCE_TOOLTIP_TEXT },
+    };
+  }
+
+  async setMilestoneCompletion(
+    userId: string,
+    milestoneId: string,
+    body: { childId: string; completed: boolean },
+  ): Promise<MilestoneCompletionResponse> {
+    const [child, milestone] = await Promise.all([
+      this.prisma.child.findFirst({
+        where: { id: body.childId, userId, deletedAt: null },
+        select: { id: true },
+      }),
+      this.prisma.milestone.findUnique({
+        where: { id: milestoneId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!child) {
+      throw new NotFoundException({
+        code: 'CHILD_NOT_FOUND',
+        message: 'Child not found.',
+      });
+    }
+    if (!milestone) {
+      throw new NotFoundException({
+        code: 'MILESTONE_NOT_FOUND',
+        message: 'Milestone not found.',
+      });
+    }
+
+    if (!body.completed) {
+      await this.prisma.childMilestoneCompletion.deleteMany({
+        where: { childId: child.id, milestoneId },
+      });
+      return { milestoneId, completed: false, completedAt: null };
+    }
+
+    const completion = await this.prisma.childMilestoneCompletion.upsert({
+      where: {
+        childId_milestoneId: { childId: child.id, milestoneId },
+      },
+      create: { childId: child.id, milestoneId },
+      update: {},
+      select: { completedAt: true },
+    });
+
+    return {
+      milestoneId,
+      completed: true,
+      completedAt: completion.completedAt.toISOString(),
     };
   }
 }

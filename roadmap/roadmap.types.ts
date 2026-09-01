@@ -61,5 +61,13 @@ export type RoadmapCategoryGroup = {
 export type RoadmapMilestoneItem = {
   id: string;
   description: string;
+  completed: boolean;
+  completedAt: string | null;
   sources: { citation: string; url: string | null }[];
+};
+
+export type MilestoneCompletionResponse = {
+  milestoneId: string;
+  completed: boolean;
+  completedAt: string | null;
 };
