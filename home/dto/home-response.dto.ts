@@ -118,6 +118,17 @@ export class HomeGrowthStageDto {
   summary!: string;
 }
 
+export class HomeRoadmapProgressDto {
+  @ApiProperty({ example: 36, minimum: 0 })
+  targetMonth!: number;
+
+  @ApiProperty({ example: 18, minimum: 0 })
+  completedCount!: number;
+
+  @ApiProperty({ example: 18, minimum: 0 })
+  totalCount!: number;
+}
+
 export class HomeReportSummaryDto {
   @ApiProperty({ format: 'uuid' })
   reportId!: string;
@@ -199,6 +210,9 @@ export class HomeDashboardDto {
 
   @ApiProperty({ type: HomeGrowthStageDto, nullable: true })
   growthStage!: HomeGrowthStageDto | null;
+
+  @ApiProperty({ type: HomeRoadmapProgressDto })
+  roadmapProgress!: HomeRoadmapProgressDto;
 
   @ApiProperty({ type: HomeReportSummaryDto, nullable: true })
   reportSummary!: HomeReportSummaryDto | null;

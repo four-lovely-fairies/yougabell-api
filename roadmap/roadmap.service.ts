@@ -12,9 +12,11 @@ import {
   CDC_CHECKPOINTS,
   MONTH_TAB_WINDOW,
   ROADMAP_CATEGORY_ORDER,
+  resolveRoadmapCheckpoint,
   type RoadmapCategoryGroup,
   type RoadmapCategoryId,
   type RoadmapResponse,
+  type MilestoneCompletionResponse,
 } from './roadmap.types';
 
 const SOURCE_TOOLTIP_TEXT =
@@ -72,7 +74,7 @@ export class RoadmapService {
         ? clampAge(query.targetMonth)
         : childAgeMonths;
 
-    const targetMonth = resolveToCheckpoint(requestedMonth);
+    const targetMonth = resolveRoadmapCheckpoint(requestedMonth);
     const { tabs, range } = buildMonthTabs(targetMonth);
 
     const [categories, milestones, stage] = await Promise.all([
@@ -97,6 +99,20 @@ export class RoadmapService {
       }),
     ]);
 
+    const completions = await this.prisma.childMilestoneCompletion.findMany({
+      where: {
+        childId: child.id,
+        milestoneId: { in: milestones.map((milestone) => milestone.id) },
+      },
+      select: { milestoneId: true, completedAt: true },
+    });
+    const completionByMilestoneId = new Map(
+      completions.map((completion) => [
+        completion.milestoneId,
+        completion.completedAt,
+      ]),
+    );
+
     const categoryById = new Map(categories.map((c) => [c.id, c]));
     const groupedByCategory = new Map<RoadmapCategoryId, typeof milestones>();
     for (const milestone of milestones) {
@@ -117,6 +133,9 @@ export class RoadmapService {
           items: items.map((m) => ({
             id: m.id,
             description: m.description,
+            completed: completionByMilestoneId.has(m.id),
+            completedAt:
+              completionByMilestoneId.get(m.id)?.toISOString() ?? null,
             sources: m.sources.map((s) => ({
               citation: s.citation,
               url: s.url,
@@ -142,27 +161,63 @@ export class RoadmapService {
       sourceTooltip: { text: SOURCE_TOOLTIP_TEXT },
     };
   }
+
+  async setMilestoneCompletion(
+    userId: string,
+    milestoneId: string,
+    body: { childId: string; completed: boolean },
+  ): Promise<MilestoneCompletionResponse> {
+    const [child, milestone] = await Promise.all([
+      this.prisma.child.findFirst({
+        where: { id: body.childId, userId, deletedAt: null },
+        select: { id: true },
+      }),
+      this.prisma.milestone.findUnique({
+        where: { id: milestoneId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!child) {
+      throw new NotFoundException({
+        code: 'CHILD_NOT_FOUND',
+        message: 'Child not found.',
+      });
+    }
+    if (!milestone) {
+      throw new NotFoundException({
+        code: 'MILESTONE_NOT_FOUND',
+        message: 'Milestone not found.',
+      });
+    }
+
+    if (!body.completed) {
+      await this.prisma.childMilestoneCompletion.deleteMany({
+        where: { childId: child.id, milestoneId },
+      });
+      return { milestoneId, completed: false, completedAt: null };
+    }
+
+    const completion = await this.prisma.childMilestoneCompletion.upsert({
+      where: {
+        childId_milestoneId: { childId: child.id, milestoneId },
+      },
+      create: { childId: child.id, milestoneId },
+      update: {},
+      select: { completedAt: true },
+    });
+
+    return {
+      milestoneId,
+      completed: true,
+      completedAt: completion.completedAt.toISOString(),
+    };
+  }
 }
 
 function clampAge(months: number): number {
   if (!Number.isFinite(months)) return AGE_MONTH_MIN;
   return Math.max(AGE_MONTH_MIN, Math.min(AGE_MONTH_MAX, Math.floor(months)));
-}
-
-/**
- * 입력 월령을 CDC 체크포인트 중 가장 가까운 하단 값으로 보정.
- * 첫 체크포인트(2개월)보다 작으면 첫 체크포인트 반환.
- */
-function resolveToCheckpoint(months: number): number {
-  let resolved = CDC_CHECKPOINTS[0];
-  for (const checkpoint of CDC_CHECKPOINTS) {
-    if (checkpoint <= months) {
-      resolved = checkpoint;
-    } else {
-      break;
-    }
-  }
-  return resolved;
 }
 
 /**

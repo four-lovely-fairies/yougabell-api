@@ -48,6 +48,11 @@ export type HomeDashboard = {
     name: string;
     summary: string;
   } | null;
+  roadmapProgress: {
+    targetMonth: number;
+    completedCount: number;
+    totalCount: number;
+  };
   reportSummary: {
     reportId: string;
     weekStart: string;
