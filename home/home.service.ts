@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { MissionExecutionStatus, Prisma } from '@prisma/client';
 import { findCurrentMission } from '../missions/missions.service/recommendation';
+import { milestoneAgeWhere } from '../milestones/milestone-age';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  ROADMAP_CATEGORY_ORDER,
+  resolveRoadmapCheckpoint,
+} from '../roadmap/roadmap.types';
 import {
   formatDurationLabel,
   getAgeLabel,
@@ -81,6 +86,7 @@ export class HomeService {
       recommendedMission,
       unreadCount,
       latestNotifications,
+      roadmapProgress,
     ] = await Promise.all([
       this.prisma.mentalBatteryCheck.findMany({
         where: {
@@ -128,6 +134,7 @@ export class HomeService {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
+      this.getRoadmapProgress(selectedChild.id, ageMonths),
     ]);
 
     const moodByDate = new Map<string, (typeof batteryChecks)[number]>();
@@ -177,6 +184,7 @@ export class HomeService {
             summary: growthStage.summary,
           }
         : null,
+      roadmapProgress,
       reportSummary: latestWeeklyReport
         ? {
             reportId: latestWeeklyReport.id,
@@ -282,6 +290,33 @@ export class HomeService {
       title: currentMission.mission.title,
       durationMinutes: currentMission.mission.durationMinutes,
       status: currentMission.status,
+    };
+  }
+
+  private async getRoadmapProgress(
+    childId: string,
+    ageMonths: number,
+  ): Promise<HomeDashboard['roadmapProgress']> {
+    const targetMonth = resolveRoadmapCheckpoint(ageMonths);
+    const milestones = await this.prisma.milestone.findMany({
+      where: {
+        ...milestoneAgeWhere(targetMonth),
+        categoryId: { in: ROADMAP_CATEGORY_ORDER },
+      },
+      select: { id: true },
+    });
+    const milestoneIds = milestones.map((milestone) => milestone.id);
+    const completedCount =
+      milestoneIds.length === 0
+        ? 0
+        : await this.prisma.childMilestoneCompletion.count({
+            where: { childId, milestoneId: { in: milestoneIds } },
+          });
+
+    return {
+      targetMonth,
+      completedCount,
+      totalCount: milestoneIds.length,
     };
   }
 }

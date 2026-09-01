@@ -27,6 +27,16 @@ export const MONTH_TAB_WINDOW = 5;
 export const AGE_MONTH_MIN = 0;
 export const AGE_MONTH_MAX = 84;
 
+/** 입력 월령을 CDC 체크포인트 중 가장 가까운 하단 값으로 보정한다. */
+export function resolveRoadmapCheckpoint(months: number): number {
+  let resolved = CDC_CHECKPOINTS[0];
+  for (const checkpoint of CDC_CHECKPOINTS) {
+    if (checkpoint > months) break;
+    resolved = checkpoint;
+  }
+  return resolved;
+}
+
 export type RoadmapResponse = {
   child: {
     id: string;

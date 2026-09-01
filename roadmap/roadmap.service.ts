@@ -12,6 +12,7 @@ import {
   CDC_CHECKPOINTS,
   MONTH_TAB_WINDOW,
   ROADMAP_CATEGORY_ORDER,
+  resolveRoadmapCheckpoint,
   type RoadmapCategoryGroup,
   type RoadmapCategoryId,
   type RoadmapResponse,
@@ -73,7 +74,7 @@ export class RoadmapService {
         ? clampAge(query.targetMonth)
         : childAgeMonths;
 
-    const targetMonth = resolveToCheckpoint(requestedMonth);
+    const targetMonth = resolveRoadmapCheckpoint(requestedMonth);
     const { tabs, range } = buildMonthTabs(targetMonth);
 
     const [categories, milestones, stage] = await Promise.all([
@@ -217,22 +218,6 @@ export class RoadmapService {
 function clampAge(months: number): number {
   if (!Number.isFinite(months)) return AGE_MONTH_MIN;
   return Math.max(AGE_MONTH_MIN, Math.min(AGE_MONTH_MAX, Math.floor(months)));
-}
-
-/**
- * 입력 월령을 CDC 체크포인트 중 가장 가까운 하단 값으로 보정.
- * 첫 체크포인트(2개월)보다 작으면 첫 체크포인트 반환.
- */
-function resolveToCheckpoint(months: number): number {
-  let resolved = CDC_CHECKPOINTS[0];
-  for (const checkpoint of CDC_CHECKPOINTS) {
-    if (checkpoint <= months) {
-      resolved = checkpoint;
-    } else {
-      break;
-    }
-  }
-  return resolved;
 }
 
 /**

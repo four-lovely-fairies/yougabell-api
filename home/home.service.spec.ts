@@ -15,7 +15,7 @@ void describe('HomeService', () => {
           createdAt: new Date('2026-05-01T00:00:00+09:00'),
         },
       ],
-      milestones: [{ categoryId: 'social' }],
+      milestones: [{ id: 'milestone-1', categoryId: 'social' }],
       missionByFindFirst: {
         id: 'm1',
         title: '첫 번째 놀이',
@@ -127,6 +127,58 @@ void describe('HomeService', () => {
     });
   });
 
+  void it('현재 월령 체크포인트의 발달 지표 완료 수를 반환한다', async () => {
+    const milestoneQueries: unknown[] = [];
+    const completionQueries: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [
+        {
+          id: 'child-1',
+          userId: 'user-1',
+          name: '김유스',
+          birthDate: new Date('2023-06-24T00:00:00+09:00'),
+          displayOrder: 0,
+          createdAt: new Date('2026-05-01T00:00:00+09:00'),
+        },
+      ],
+      milestones: [
+        { id: 'milestone-1' },
+        { id: 'milestone-2' },
+        { id: 'milestone-3' },
+      ],
+      completedMilestoneCount: 2,
+      onMilestoneFind: (args) => milestoneQueries.push(args),
+      onCompletionCount: (args) => completionQueries.push(args),
+    });
+    const service = new HomeService(prisma as never);
+
+    const result = await service.getHome('user-1', { date: '2026-07-24' });
+
+    assert.deepEqual(result.roadmapProgress, {
+      targetMonth: 36,
+      completedCount: 2,
+      totalCount: 3,
+    });
+    assert.deepEqual(milestoneQueries[0], {
+      where: {
+        ageMonthsFrom: { lt: 36 },
+        ageMonthsTo: { gte: 36 },
+        categoryId: {
+          in: ['social', 'language', 'cognitive', 'physical'],
+        },
+      },
+      select: { id: true },
+    });
+    assert.deepEqual(completionQueries[0], {
+      where: {
+        childId: 'child-1',
+        milestoneId: {
+          in: ['milestone-1', 'milestone-2', 'milestone-3'],
+        },
+      },
+    });
+  });
+
   void it('updates the latest mood check when today already has a record', async () => {
     const updateCalls: unknown[] = [];
     const prisma = createPrismaStub({
@@ -174,7 +226,10 @@ function createPrismaStub(options: {
     displayOrder: number;
     createdAt: Date;
   }>;
-  milestones?: Array<{ categoryId: string }>;
+  milestones?: Array<{ id: string; categoryId?: string }>;
+  completedMilestoneCount?: number;
+  onMilestoneFind?: (args: unknown) => void;
+  onCompletionCount?: (args: unknown) => void;
   missionByFindFirst?: {
     id: string;
     title: string;
@@ -245,7 +300,16 @@ function createPrismaStub(options: {
       findMany: () => Promise.resolve(options.children ?? []),
     },
     milestone: {
-      findMany: () => Promise.resolve(options.milestones ?? []),
+      findMany: (args: unknown) => {
+        options.onMilestoneFind?.(args);
+        return Promise.resolve(options.milestones ?? []);
+      },
+    },
+    childMilestoneCompletion: {
+      count: (args: unknown) => {
+        options.onCompletionCount?.(args);
+        return Promise.resolve(options.completedMilestoneCount ?? 0);
+      },
     },
     mission: {
       findMany: () => Promise.resolve(options.recommendCandidates ?? []),
