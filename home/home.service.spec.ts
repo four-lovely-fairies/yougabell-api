@@ -147,7 +147,7 @@ void describe('HomeService', () => {
         { id: 'milestone-3' },
       ],
       completedMilestoneCount: 2,
-      onMilestoneFind: (args) => milestoneQueries.push(args),
+      onMilestoneCount: (args) => milestoneQueries.push(args),
       onCompletionCount: (args) => completionQueries.push(args),
     });
     const service = new HomeService(prisma as never);
@@ -159,22 +159,19 @@ void describe('HomeService', () => {
       completedCount: 2,
       totalCount: 3,
     });
-    assert.deepEqual(milestoneQueries[0], {
-      where: {
-        ageMonthsFrom: { lt: 36 },
-        ageMonthsTo: { gte: 36 },
-        categoryId: {
-          in: ['social', 'language', 'cognitive', 'physical'],
-        },
+    const milestoneWhere = {
+      ageMonthsFrom: { lt: 36 },
+      ageMonthsTo: { gte: 36 },
+      categoryId: {
+        in: ['social', 'language', 'cognitive', 'physical'],
       },
-      select: { id: true },
-    });
+    };
+    assert.deepEqual(milestoneQueries[0], { where: milestoneWhere });
+    // id 목록을 경유하지 않고 관계 필터로 세므로 두 쿼리가 병렬로 나간다.
     assert.deepEqual(completionQueries[0], {
       where: {
         childId: 'child-1',
-        milestoneId: {
-          in: ['milestone-1', 'milestone-2', 'milestone-3'],
-        },
+        milestone: milestoneWhere,
       },
     });
   });
@@ -294,6 +291,7 @@ function createPrismaStub(options: {
   };
   onCreate?: (args: unknown) => void;
   onUpdate?: (args: unknown) => void;
+  onMilestoneCount?: (args: unknown) => void;
 }) {
   return {
     child: {
@@ -303,6 +301,10 @@ function createPrismaStub(options: {
       findMany: (args: unknown) => {
         options.onMilestoneFind?.(args);
         return Promise.resolve(options.milestones ?? []);
+      },
+      count: (args: unknown) => {
+        options.onMilestoneCount?.(args);
+        return Promise.resolve((options.milestones ?? []).length);
       },
     },
     childMilestoneCompletion: {

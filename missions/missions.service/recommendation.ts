@@ -20,6 +20,24 @@ export async function findRecommendedMission(
   ageMonths: number,
   today: Date,
 ): Promise<CurrentMissionRow | null> {
+  // 아이별 놀이 수행 횟수 집계는 아래 카탈로그 조회 체인과 입력이 겹치지 않는다.
+  // 체인이 끝난 뒤 조회하면 DB 왕복이 하나 더 직렬로 쌓이므로 먼저 띄워 둔다.
+  const countsPromise = prisma.missionExecution.groupBy({
+    by: ['missionId'],
+    where: {
+      childId,
+      status: {
+        in: [
+          MissionExecutionStatus.completed,
+          MissionExecutionStatus.early_completed,
+        ],
+      },
+    },
+    _count: { _all: true },
+  });
+  // 후보가 없어 조기 반환하는 경로에서 unhandled rejection이 되지 않도록 한다.
+  countsPromise.catch(() => undefined);
+
   // 카탈로그가 커버하는 추천 월령 범위를 벗어난 아이(예: 시드 상한을 넘는 고월령)는
   // 가장 가까운 경계 월령대로 클램프해 추천한다. 범위 안이면 그대로 사용.
   const effectiveAge = await clampAgeToMissionCatalog(prisma, ageMonths);
@@ -57,20 +75,8 @@ export async function findRecommendedMission(
     return null;
   }
 
-  // 아이별 놀이 수행(완료) 횟수 집계.
-  const counts = await prisma.missionExecution.groupBy({
-    by: ['missionId'],
-    where: {
-      childId,
-      status: {
-        in: [
-          MissionExecutionStatus.completed,
-          MissionExecutionStatus.early_completed,
-        ],
-      },
-    },
-    _count: { _all: true },
-  });
+  // 아이별 놀이 수행(완료) 횟수 집계 — 위에서 먼저 띄워 둔 결과를 받는다.
+  const counts = await countsPromise;
   const countByMission = new Map(
     counts.map((row) => [row.missionId, row._count._all]),
   );
