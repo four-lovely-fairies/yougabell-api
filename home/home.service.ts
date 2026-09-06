@@ -34,6 +34,11 @@ const COMPLETED_MISSION_STATUSES: MissionExecutionStatus[] = [
   'early_completed',
 ];
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+// 홈에 표시하는 연속 놀이일수의 조회 상한. 이 기간을 넘는 스트릭은 상한값으로
+// 표시된다 — 전체 이력 스캔을 피하기 위한 의도적인 절충.
+const STREAK_LOOKBACK_DAYS = 400;
+
 @Injectable()
 export class HomeService {
   constructor(private readonly prisma: PrismaService) {}
@@ -76,6 +81,9 @@ export class HomeService {
     const previousWeekStart = new Date(
       `${previousWeekStartKey}T00:00:00+09:00`,
     );
+    const streakLookbackStart = new Date(
+      today.getTime() - STREAK_LOOKBACK_DAYS * DAY_MS,
+    );
 
     const [
       batteryChecks,
@@ -105,6 +113,10 @@ export class HomeService {
         where: {
           childId: selectedChild.id,
           status: { in: COMPLETED_MISSION_STATUSES },
+          // 연속 놀이일수는 오늘부터 거슬러 올라가다 빈 날에서 끊긴다.
+          // 전체 기간을 읽으면 수행 이력이 쌓일수록 응답이 느려지므로
+          // 스트릭 상한(STREAK_LOOKBACK_DAYS)만큼만 읽는다.
+          startedAt: { gte: streakLookbackStart },
         },
         select: {
           startedAt: true,
@@ -298,25 +310,23 @@ export class HomeService {
     ageMonths: number,
   ): Promise<HomeDashboard['roadmapProgress']> {
     const targetMonth = resolveRoadmapCheckpoint(ageMonths);
-    const milestones = await this.prisma.milestone.findMany({
-      where: {
-        ...milestoneAgeWhere(targetMonth),
-        categoryId: { in: ROADMAP_CATEGORY_ORDER },
-      },
-      select: { id: true },
-    });
-    const milestoneIds = milestones.map((milestone) => milestone.id);
-    const completedCount =
-      milestoneIds.length === 0
-        ? 0
-        : await this.prisma.childMilestoneCompletion.count({
-            where: { childId, milestoneId: { in: milestoneIds } },
-          });
+    const milestoneWhere = {
+      ...milestoneAgeWhere(targetMonth),
+      categoryId: { in: ROADMAP_CATEGORY_ORDER },
+    };
+    // milestone id 목록을 먼저 받아 두 번째 쿼리에 넘기면 DB 왕복이 직렬로
+    // 쌓인다. 관계 필터로 바꿔 두 카운트를 동시에 조회한다.
+    const [totalCount, completedCount] = await Promise.all([
+      this.prisma.milestone.count({ where: milestoneWhere }),
+      this.prisma.childMilestoneCompletion.count({
+        where: { childId, milestone: milestoneWhere },
+      }),
+    ]);
 
     return {
       targetMonth,
       completedCount,
-      totalCount: milestoneIds.length,
+      totalCount,
     };
   }
 }
