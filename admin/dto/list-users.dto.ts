@@ -13,7 +13,7 @@ export class ListUsersDto {
   @IsIn(['true', 'false', 'all'])
   onboarded?: OnboardedFilter;
 
-  @ApiPropertyOptional({ description: '이름 LIKE 검색' })
+  @ApiPropertyOptional({ description: '이름 또는 이메일 부분 검색' })
   @IsOptional()
   @IsString()
   q?: string;

@@ -24,7 +24,7 @@ export class AdminController {
   @ApiOperation({
     summary: '사용자 목록 (운영자)',
     description:
-      '온보딩 완료자 기본. q(이름 LIKE) / page / limit / onboarded 필터.',
+      '온보딩 완료자 기본. q(이름 또는 이메일 검색) / page / limit / onboarded 필터. 이메일은 마스킹하여 반환.',
   })
   async listUsers(@Query() query: ListUsersDto) {
     return this.service.listUsers(query);
