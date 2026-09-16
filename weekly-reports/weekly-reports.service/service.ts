@@ -142,10 +142,24 @@ export class WeeklyReportsService {
     const weekStartKey = getPreviousCompletedWeekStart(
       query.today ?? new Date(),
     );
+    const [defaultChild] = query.childId
+      ? []
+      : await this.prisma.child.findMany({
+          where: { userId, deletedAt: null },
+          orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+          select: { id: true },
+          take: 1,
+        });
+    const selectedChildId = query.childId ?? defaultChild?.id;
+
+    if (!selectedChildId) {
+      return { hasUnviewedReport: false };
+    }
+
     const report = await this.prisma.weeklyReport.findFirst({
       where: {
         userId,
-        childId: query.childId,
+        childId: selectedChildId,
         weekStart: new Date(`${weekStartKey}T00:00:00+09:00`),
         viewedAt: null,
         child: { deletedAt: null },

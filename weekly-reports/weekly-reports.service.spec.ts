@@ -45,6 +45,60 @@ void describe('WeeklyReportsService', () => {
     assert.deepEqual(result, { hasUnviewedReport: true });
   });
 
+  void it('uses the ordered default child for unviewed status when childId is absent', async () => {
+    const childQueries: unknown[] = [];
+    const reportQueries: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [
+        createChild(),
+        { ...createChild(), id: 'child-2', displayOrder: 1 },
+      ],
+      report: createReport(),
+      onFindChildren: (args) => childQueries.push(args),
+      onFindReport: (args) => reportQueries.push(args),
+    });
+    const service = createService(prisma);
+
+    const result = await service.getUnviewedStatus('user-1', {
+      today: new Date('2026-05-13T12:00:00+09:00'),
+    });
+
+    assert.deepEqual(result, { hasUnviewedReport: true });
+    assert.deepEqual(childQueries[0], {
+      where: { userId: 'user-1', deletedAt: null },
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true },
+      take: 1,
+    });
+    assert.deepEqual(reportQueries[0], {
+      where: {
+        userId: 'user-1',
+        childId: 'child-1',
+        weekStart: new Date('2026-05-03T15:00:00.000Z'),
+        viewedAt: null,
+        child: { deletedAt: null },
+      },
+      select: { id: true },
+    });
+  });
+
+  void it('returns false without a report query when no active child exists', async () => {
+    const reportQueries: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [],
+      report: createReport(),
+      onFindReport: (args) => reportQueries.push(args),
+    });
+    const service = createService(prisma);
+
+    const result = await service.getUnviewedStatus('user-1', {
+      today: new Date('2026-05-13T12:00:00+09:00'),
+    });
+
+    assert.deepEqual(result, { hasUnviewedReport: false });
+    assert.equal(reportQueries.length, 0);
+  });
+
   void it('marks a report as viewed for its owner', async () => {
     const updates: unknown[] = [];
     const prisma = createPrismaStub({
@@ -60,10 +114,13 @@ void describe('WeeklyReportsService', () => {
     assert.equal(updates.length, 1);
     assert.deepEqual(updates[0], {
       where: { id: 'report-1', userId: 'user-1', viewedAt: null },
-      data: { viewedAt: (updates[0] as { data: { viewedAt: Date } }).data.viewedAt },
+      data: {
+        viewedAt: (updates[0] as { data: { viewedAt: Date } }).data.viewedAt,
+      },
     });
     assert.ok(
-      (updates[0] as { data: { viewedAt: Date } }).data.viewedAt instanceof Date,
+      (updates[0] as { data: { viewedAt: Date } }).data.viewedAt instanceof
+        Date,
     );
   });
 
@@ -745,6 +802,8 @@ function createPrismaStub({
   onCreateReport,
   onCreateNotification,
   onUpdateReports,
+  onFindChildren,
+  onFindReport,
 }: {
   children: Awaited<ReturnType<WeeklyReportsPrisma['child']['findMany']>>;
   report: Awaited<ReturnType<WeeklyReportsPrisma['weeklyReport']['findFirst']>>;
@@ -755,14 +814,22 @@ function createPrismaStub({
   onCreateReport?: (args: unknown) => void;
   onCreateNotification?: (args: unknown) => void;
   onUpdateReports?: (args: unknown) => void;
+  onFindChildren?: (args: unknown) => void;
+  onFindReport?: (args: unknown) => void;
 }): WeeklyReportsPrisma {
   let countCallIndex = 0;
   return {
     child: {
-      findMany: () => Promise.resolve(children),
+      findMany: (args: unknown) => {
+        onFindChildren?.(args);
+        return Promise.resolve(children);
+      },
     },
     weeklyReport: {
-      findFirst: () => Promise.resolve(report),
+      findFirst: (args: unknown) => {
+        onFindReport?.(args);
+        return Promise.resolve(report);
+      },
       updateMany: (args: unknown) => {
         onUpdateReports?.(args);
         return Promise.resolve({ count: 1 });
