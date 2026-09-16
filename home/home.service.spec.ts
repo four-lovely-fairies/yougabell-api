@@ -108,6 +108,7 @@ void describe('HomeService', () => {
         weekEnd: new Date('2026-07-19T00:00:00+09:00'),
         totalMissionDurationSeconds: 1200,
         childPositiveReactionRate: 0.75,
+        viewedAt: null,
         days: [{ completedCount: 2 }, { completedCount: 1 }],
       },
       onWeeklyReportFind: (args) => weeklyReportQueries.push(args),
@@ -118,6 +119,7 @@ void describe('HomeService', () => {
 
     assert.equal(result.reportSummary?.completedPlayCount, 3);
     assert.equal(result.reportSummary?.childPositiveReactionRate, 75);
+    assert.equal(result.hasUnviewedWeeklyReport, true);
     assert.deepEqual(weeklyReportQueries[0], {
       where: {
         childId: 'child-1',
@@ -125,6 +127,89 @@ void describe('HomeService', () => {
       },
       include: { days: true },
     });
+  });
+
+  void it('returns the play notification preference without loading the full user profile', async () => {
+    const preferenceQueries: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [
+        {
+          id: 'child-1',
+          userId: 'user-1',
+          name: '김유스',
+          birthDate: new Date('2024-07-24T00:00:00+09:00'),
+          displayOrder: 0,
+          createdAt: new Date('2026-05-01T00:00:00+09:00'),
+        },
+      ],
+      playNotificationPreference: { enabled: true },
+      onNotificationPreferenceFind: (args) => preferenceQueries.push(args),
+    });
+    const service = new HomeService(prisma as never);
+
+    const result = await service.getHome('user-1', { date: '2026-07-24' });
+
+    assert.equal(result.playNotificationEnabled, true);
+    assert.equal(result.hasUnviewedWeeklyReport, false);
+    assert.deepEqual(preferenceQueries[0], {
+      where: {
+        userId_type: {
+          userId: 'user-1',
+          type: 'play_10min',
+        },
+      },
+      select: { enabled: true },
+    });
+  });
+
+  void it('uses false defaults when the preference and weekly report do not exist', async () => {
+    const prisma = createPrismaStub({
+      children: [
+        {
+          id: 'child-1',
+          userId: 'user-1',
+          name: '김유스',
+          birthDate: new Date('2024-07-24T00:00:00+09:00'),
+          displayOrder: 0,
+          createdAt: new Date('2026-05-01T00:00:00+09:00'),
+        },
+      ],
+    });
+    const service = new HomeService(prisma as never);
+
+    const result = await service.getHome('user-1', { date: '2026-07-24' });
+
+    assert.equal(result.playNotificationEnabled, false);
+    assert.equal(result.hasUnviewedWeeklyReport, false);
+  });
+
+  void it('does not report a viewed weekly report as unviewed', async () => {
+    const prisma = createPrismaStub({
+      children: [
+        {
+          id: 'child-1',
+          userId: 'user-1',
+          name: '김유스',
+          birthDate: new Date('2024-07-24T00:00:00+09:00'),
+          displayOrder: 0,
+          createdAt: new Date('2026-05-01T00:00:00+09:00'),
+        },
+      ],
+      weeklyReport: {
+        id: 'report-1',
+        weekStart: new Date('2026-07-13T00:00:00+09:00'),
+        weekEnd: new Date('2026-07-19T00:00:00+09:00'),
+        totalMissionDurationSeconds: 1200,
+        childPositiveReactionRate: 0.75,
+        viewedAt: new Date('2026-07-20T10:00:00+09:00'),
+        days: [{ completedCount: 3 }],
+      },
+    });
+    const service = new HomeService(prisma as never);
+
+    const result = await service.getHome('user-1', { date: '2026-07-24' });
+
+    assert.equal(result.hasUnviewedWeeklyReport, false);
   });
 
   void it('현재 월령 체크포인트의 발달 지표 완료 수를 반환한다', async () => {
@@ -268,6 +353,7 @@ function createPrismaStub(options: {
     weekEnd: Date;
     totalMissionDurationSeconds: number;
     childPositiveReactionRate: number;
+    viewedAt: Date | null;
     days: Array<{ completedCount: number }>;
   } | null;
   onWeeklyReportFind?: (args: unknown) => void;
@@ -292,6 +378,8 @@ function createPrismaStub(options: {
   onCreate?: (args: unknown) => void;
   onUpdate?: (args: unknown) => void;
   onMilestoneCount?: (args: unknown) => void;
+  playNotificationPreference?: { enabled: boolean } | null;
+  onNotificationPreferenceFind?: (args: unknown) => void;
 }) {
   return {
     child: {
@@ -342,6 +430,12 @@ function createPrismaStub(options: {
     notification: {
       count: () => Promise.resolve(0),
       findMany: () => Promise.resolve([]),
+    },
+    notificationPreference: {
+      findUnique: (args: unknown) => {
+        options.onNotificationPreferenceFind?.(args);
+        return Promise.resolve(options.playNotificationPreference ?? null);
+      },
     },
     mentalBatteryCheck: {
       findMany: () => Promise.resolve([]),

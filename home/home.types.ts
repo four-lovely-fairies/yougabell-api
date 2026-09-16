@@ -63,6 +63,8 @@ export type HomeDashboard = {
     totalDurationLabel: string;
     childPositiveReactionRate: number;
   } | null;
+  playNotificationEnabled: boolean;
+  hasUnviewedWeeklyReport: boolean;
   notifications: {
     unreadCount: number;
     latest: HomeNotificationSummaryItem[];

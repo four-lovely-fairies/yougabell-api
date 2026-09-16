@@ -217,6 +217,12 @@ export class HomeDashboardDto {
   @ApiProperty({ type: HomeReportSummaryDto, nullable: true })
   reportSummary!: HomeReportSummaryDto | null;
 
+  @ApiProperty({ example: true })
+  playNotificationEnabled!: boolean;
+
+  @ApiProperty({ example: true })
+  hasUnviewedWeeklyReport!: boolean;
+
   @ApiProperty({ type: HomeNotificationsDto })
   notifications!: HomeNotificationsDto;
 }

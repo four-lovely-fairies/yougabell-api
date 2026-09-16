@@ -95,6 +95,7 @@ export class HomeService {
       unreadCount,
       latestNotifications,
       roadmapProgress,
+      playNotificationPreference,
     ] = await Promise.all([
       this.prisma.mentalBatteryCheck.findMany({
         where: {
@@ -147,6 +148,15 @@ export class HomeService {
         take: 5,
       }),
       this.getRoadmapProgress(selectedChild.id, ageMonths),
+      this.prisma.notificationPreference.findUnique({
+        where: {
+          userId_type: {
+            userId,
+            type: 'play_10min',
+          },
+        },
+        select: { enabled: true },
+      }),
     ]);
 
     const moodByDate = new Map<string, (typeof batteryChecks)[number]>();
@@ -217,6 +227,9 @@ export class HomeService {
             ),
           }
         : null,
+      playNotificationEnabled: playNotificationPreference?.enabled ?? false,
+      hasUnviewedWeeklyReport:
+        latestWeeklyReport !== null && latestWeeklyReport.viewedAt === null,
       notifications: {
         unreadCount,
         latest: latestNotifications.map(toHomeNotification),
