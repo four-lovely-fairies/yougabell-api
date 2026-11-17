@@ -82,3 +82,24 @@ export function sanitizeAssistantContent(raw: string): string {
 export function containsSystemPromptLeak(raw: string): boolean {
   return SYSTEM_PROMPT_LEAK_PATTERN.test(raw);
 }
+
+/**
+ * 답변 끝의 선택지 블록 `[[선택지: 보기1 | 보기2 | 보기3]]`을 떼어 낸다.
+ * 질문이 넓으면 모델이 바로 길게 답하지 않고 상황을 고르게 하는데, 이때 보기를
+ * 이 형식으로 붙인다. 본문에서는 지우고 보기는 follow_up 카드로 따로 보낸다.
+ */
+const CHOICES_BLOCK = /\[\[\s*선택지\s*[:：]?\s*([^\]]*)(?:\]\]?)?\s*$/;
+
+export function extractChoices(raw: string): {
+  body: string;
+  choices: string[];
+} {
+  const match = CHOICES_BLOCK.exec(raw);
+  if (!match) return { body: raw, choices: [] };
+  const choices = match[1]
+    .split(/[|｜\n]/)
+    .map((item) => item.replace(/^[-*·\d.)\s]+/, '').trim())
+    .filter((item) => item.length > 0 && item.length <= 40)
+    .slice(0, 4);
+  return { body: raw.slice(0, match.index).trimEnd(), choices };
+}
