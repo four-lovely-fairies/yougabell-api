@@ -22,6 +22,7 @@ import { buildChatSystemPrompt } from '../ai/prompts/chat-system';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   containsSystemPromptLeak,
+  extractChoices,
   sanitizeAssistantContent,
 } from './chat-sanitize';
 import {
@@ -199,6 +200,10 @@ export class ChatService {
       break;
     }
 
+    // 끝에 붙은 선택지 블록은 본문에서 떼어 follow_up 카드로 보낸다.
+    const { body: replyBody, choices } = extractChoices(full);
+    full = replyBody;
+
     // 프롬프트 되뱉음·비정상 길이 감지 — 카드 추출 전에 판정한다.
     const promptLeaked = containsSystemPromptLeak(full);
     if (promptLeaked) {
@@ -213,7 +218,8 @@ export class ChatService {
 
     let cardsPayload: ChatCardsPayload = { cards: [], sources: [] };
     // 누출된 응답에서 뽑은 카드는 전부 지시문 조각이다 — 추출 자체를 건너뛴다.
-    if (!promptLeaked) {
+    // 선택지를 물은 답변(상황 확인)은 행동 카드가 없으므로 추출을 생략한다 — 응답도 빨라진다.
+    if (!promptLeaked && choices.length === 0) {
       try {
         // AI SDK v6: generateText + Output.object 으로 구조화 출력.
         const extraction = await generateText({
@@ -241,7 +247,14 @@ export class ChatService {
     const assistant = await this.saveAssistant({
       sessionId,
       content: cleaned,
-      cards: cardsPayload.cards,
+      cards:
+        choices.length > 0
+          ? choices.map((choice) => ({
+              title: choice,
+              body: '',
+              actionType: 'follow_up' as const,
+            }))
+          : cardsPayload.cards,
       sources: knowledgeSources,
       tokensUsed: totalTokens || null,
     });
@@ -280,7 +293,11 @@ export class ChatService {
   private async saveAssistant(input: {
     sessionId: string;
     content: string;
-    cards: Array<{ title: string; body: string }>;
+    cards: Array<{
+      title: string;
+      body: string;
+      actionType?: 'follow_up';
+    }>;
     sources: Array<{ url: string; domain: string; title: string | null }>;
     tokensUsed?: number | null;
   }): Promise<MessageWithRelations> {
@@ -296,6 +313,7 @@ export class ChatService {
                 order: index,
                 title: card.title,
                 body: card.body,
+                ...(card.actionType ? { actionType: card.actionType } : {}),
               })),
             }
           : undefined,
