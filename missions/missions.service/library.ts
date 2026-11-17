@@ -15,6 +15,7 @@ const LIBRARY_MISSION_SELECT = {
   durationMinutes: true,
   categoryId: true,
   category: { select: { label: true } },
+  sources: { select: { citation: true }, orderBy: { citation: 'asc' } },
 } satisfies Prisma.MissionSelect;
 
 type LibraryMissionRow = Prisma.MissionGetPayload<{
@@ -32,6 +33,8 @@ const toLibraryItem = (mission: LibraryMissionRow, isFavorite: boolean) => ({
   durationLabel: `${mission.durationMinutes}분`,
   categoryId: mission.categoryId,
   categoryLabel: mission.category.label,
+  // 오늘의 놀이(/missions/current)와 같은 규칙 — 첫 번째 출처, 없으면 '출처 없음'
+  sourceLabel: mission.sources[0]?.citation ?? '출처 없음',
   isFavorite,
 });
 

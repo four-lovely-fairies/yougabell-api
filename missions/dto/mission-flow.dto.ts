@@ -370,6 +370,9 @@ export class MissionLibraryItemDto {
   @ApiProperty({ format: 'uuid' })
   missionId!: string;
 
+  @ApiProperty({ description: '놀이 출처 (첫 번째 출처, 없으면 출처 없음)' })
+  sourceLabel!: string;
+
   @ApiProperty()
   title!: string;
 

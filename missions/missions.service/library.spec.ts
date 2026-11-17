@@ -15,6 +15,7 @@ const mission = {
   durationMinutes: 10,
   categoryId: 'language',
   category: { label: '언어발달' },
+  sources: [{ citation: 'CDC 2022' }],
 };
 
 type Calls = Record<string, unknown[]>;
@@ -71,6 +72,7 @@ void describe('favorite missions', () => {
       durationLabel: '10분',
       categoryId: 'language',
       categoryLabel: '언어발달',
+      sourceLabel: 'CDC 2022',
       isFavorite: true,
       savedAt: savedAt.toISOString(),
     });
