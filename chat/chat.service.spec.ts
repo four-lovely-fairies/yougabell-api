@@ -454,3 +454,59 @@ function createPrismaStub(input: {
     _messageCreates: messageCreates,
   };
 }
+
+void describe('ChatService.setMessageFeedback', () => {
+  const makeService = (found: { id: string } | null) => {
+    const calls: { findFirst: unknown[]; upsert: unknown[] } = {
+      findFirst: [],
+      upsert: [],
+    };
+    const prisma = {
+      chatMessage: {
+        findFirst: (args: unknown) => {
+          calls.findFirst.push(args);
+          return Promise.resolve(found);
+        },
+      },
+      chatMessageFeedback: {
+        upsert: (args: unknown) => {
+          calls.upsert.push(args);
+          return Promise.resolve({});
+        },
+      },
+    };
+    const service = new ChatService(
+      prisma as unknown as PrismaService,
+      aiUnavailable,
+      contextBuilder,
+      knowledgeDisabled,
+    );
+    return { service, calls };
+  };
+
+  void it('본인 대화의 AI 답변이면 messageId 기준으로 upsert 한다', async () => {
+    const { service, calls } = makeService({ id: 'msg-1' });
+
+    await service.setMessageFeedback('user-1', 'msg-1', false);
+
+    assert.deepEqual(calls.findFirst[0], {
+      where: { id: 'msg-1', role: 'assistant', session: { userId: 'user-1' } },
+      select: { id: true },
+    });
+    assert.deepEqual(calls.upsert[0], {
+      where: { messageId: 'msg-1' },
+      create: { messageId: 'msg-1', userId: 'user-1', helpful: false },
+      update: { helpful: false },
+    });
+  });
+
+  void it('본인 답변이 아니면 404를 던지고 저장하지 않는다', async () => {
+    const { service, calls } = makeService(null);
+
+    await assert.rejects(
+      service.setMessageFeedback('user-1', 'msg-x', true),
+      (err: Error) => err.name === 'NotFoundException',
+    );
+    assert.equal(calls.upsert.length, 0);
+  });
+});

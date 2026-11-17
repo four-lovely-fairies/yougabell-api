@@ -49,6 +49,7 @@ model User {
   satisfactionSurveyResponses SatisfactionSurveyResponse[]
   mentalCareExecutions        MentalCareExecution[]
   chatSessions                ChatSession[]
+  chatMessageFeedbacks        ChatMessageFeedback[]
   weeklyReports               WeeklyReport[]
   consents                    UserConsent[]
   inquiries                   Inquiry[]
@@ -680,13 +681,31 @@ model ChatMessage {
   sentAt     DateTime @default(now())
   createdAt  DateTime @default(now())
 
-  session     ChatSession        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session     ChatSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   cards       MessageCard[]
   sourceLinks SourceLink[]
   tags        ChatMessageTag[]
   retrievals  MessageRetrieval[]
+  feedback    ChatMessageFeedback?
 
   @@index([sessionId, sentAt])
+}
+
+// AI 답변에 대한 "도움이 돼요 / 도움이 안돼요" 피드백. 답변 1개당 1행(마지막 선택으로 갱신).
+// 답변(ChatMessage)·질문 흐름과 이어 봐서 답변 품질 개선에 쓴다.
+model ChatMessageFeedback {
+  id        String   @id @default(uuid()) @db.Uuid
+  messageId String   @unique @db.Uuid // assistant ChatMessage.id
+  userId    String   @db.Uuid
+  helpful   Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([helpful, updatedAt])
+  @@index([userId])
 }
 
 enum ChatRole {
