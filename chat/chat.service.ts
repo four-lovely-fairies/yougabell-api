@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ChatRole, Prisma } from '@prisma/client';
 import {
   generateText,
@@ -288,6 +288,34 @@ export class ChatService {
         })),
       },
     };
+  }
+
+  /**
+   * AI 답변 피드백("도움이 돼요/안돼요") 저장. 답변 1개당 1행, 다시 누르면 마지막 값으로 갱신.
+   * 본인 대화의 assistant 메시지가 아니면 404.
+   */
+  async setMessageFeedback(
+    userId: string,
+    messageId: string,
+    helpful: boolean,
+  ): Promise<void> {
+    const message = await this.prisma.chatMessage.findFirst({
+      where: {
+        id: messageId,
+        role: ChatRole.assistant,
+        session: { userId },
+      },
+      select: { id: true },
+    });
+    if (!message) {
+      throw new NotFoundException('피드백을 남길 답변을 찾을 수 없어요.');
+    }
+
+    await this.prisma.chatMessageFeedback.upsert({
+      where: { messageId },
+      create: { messageId, userId, helpful },
+      update: { helpful },
+    });
   }
 
   private async saveAssistant(input: {

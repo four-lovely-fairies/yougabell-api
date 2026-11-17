@@ -4,13 +4,17 @@ import {
   Delete,
   Get,
   HttpCode,
+  Param,
+  ParseUUIDPipe,
   Post,
+  Put,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiProduces,
   ApiTags,
@@ -19,6 +23,7 @@ import type { Response } from 'express';
 import { CurrentUserId } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChatService } from './chat.service';
+import { ChatMessageFeedbackRequestDto } from './dto/chat-feedback-request.dto';
 import { SendChatMessageRequestDto } from './dto/chat-message-request.dto';
 import { ChatResponseDto } from './dto/chat-response.dto';
 import type { ChatResponse } from './chat.types';
@@ -72,6 +77,19 @@ export class ChatController {
     } finally {
       res.end();
     }
+  }
+
+  /** AI 답변 피드백 — 도움이 돼요(true) / 도움이 안돼요(false). 다시 보내면 마지막 값으로 갱신. */
+  @Put('messages/:messageId/feedback')
+  @HttpCode(204)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: '본인 대화의 AI 답변이 아님' })
+  setFeedback(
+    @CurrentUserId() userId: string,
+    @Param('messageId', new ParseUUIDPipe()) messageId: string,
+    @Body() body: ChatMessageFeedbackRequestDto,
+  ): Promise<void> {
+    return this.service.setMessageFeedback(userId, messageId, body.helpful);
   }
 
   @Delete()
