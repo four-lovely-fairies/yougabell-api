@@ -698,6 +698,7 @@ model ChatMessageFeedback {
   messageId String   @unique @db.Uuid // assistant ChatMessage.id
   userId    String   @db.Uuid
   helpful   Boolean
+  comment   String? // 도움이 안돼요일 때 "어떤 점이 아쉬웠나요?" 입력 내용 (최대 500자)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

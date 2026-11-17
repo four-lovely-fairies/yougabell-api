@@ -500,6 +500,45 @@ void describe('ChatService.setMessageFeedback', () => {
     });
   });
 
+  void it('도움이 안돼요 + 아쉬운 점은 다듬어서 저장한다', async () => {
+    const { service, calls } = makeService({ id: 'msg-1' });
+
+    await service.setMessageFeedback(
+      'user-1',
+      'msg-1',
+      false,
+      '  답이 너무 길어요  ',
+    );
+
+    assert.deepEqual(calls.upsert[0], {
+      where: { messageId: 'msg-1' },
+      create: {
+        messageId: 'msg-1',
+        userId: 'user-1',
+        helpful: false,
+        comment: '답이 너무 길어요',
+      },
+      update: { helpful: false, comment: '답이 너무 길어요' },
+    });
+  });
+
+  void it('도움이 돼요로 바꾸면 아쉬운 점을 지운다', async () => {
+    const { service, calls } = makeService({ id: 'msg-1' });
+
+    await service.setMessageFeedback('user-1', 'msg-1', true, '무시됨');
+
+    assert.deepEqual(calls.upsert[0], {
+      where: { messageId: 'msg-1' },
+      create: {
+        messageId: 'msg-1',
+        userId: 'user-1',
+        helpful: true,
+        comment: null,
+      },
+      update: { helpful: true, comment: null },
+    });
+  });
+
   void it('본인 답변이 아니면 404를 던지고 저장하지 않는다', async () => {
     const { service, calls } = makeService(null);
 

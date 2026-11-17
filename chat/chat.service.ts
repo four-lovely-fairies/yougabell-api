@@ -298,6 +298,7 @@ export class ChatService {
     userId: string,
     messageId: string,
     helpful: boolean,
+    comment?: string,
   ): Promise<void> {
     const message = await this.prisma.chatMessage.findFirst({
       where: {
@@ -311,10 +312,19 @@ export class ChatService {
       throw new NotFoundException('피드백을 남길 답변을 찾을 수 없어요.');
     }
 
+    // 아쉬운 점은 "도움이 안돼요"에만 남긴다. 도움이 돼요로 바꾸면 지운다.
+    // comment를 안 보낸 요청(버튼만 다시 누름)은 기존 내용을 유지한다.
+    const trimmed = comment?.trim();
+    const commentData = helpful
+      ? { comment: null }
+      : comment === undefined
+        ? {}
+        : { comment: trimmed ? trimmed : null };
+
     await this.prisma.chatMessageFeedback.upsert({
       where: { messageId },
-      create: { messageId, userId, helpful },
-      update: { helpful },
+      create: { messageId, userId, helpful, ...commentData },
+      update: { helpful, ...commentData },
     });
   }
 

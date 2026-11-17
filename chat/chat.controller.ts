@@ -89,7 +89,12 @@ export class ChatController {
     @Param('messageId', new ParseUUIDPipe()) messageId: string,
     @Body() body: ChatMessageFeedbackRequestDto,
   ): Promise<void> {
-    return this.service.setMessageFeedback(userId, messageId, body.helpful);
+    return this.service.setMessageFeedback(
+      userId,
+      messageId,
+      body.helpful,
+      body.comment,
+    );
   }
 
   @Delete()
