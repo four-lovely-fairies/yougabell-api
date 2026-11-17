@@ -36,8 +36,9 @@ const RECENT_HISTORY_FOR_PROMPT = 10;
 // 생성 호출 1회당 출력 토큰 상한. 이 한도에서 문장이 끊기면 다음 세그먼트로
 // "이어서" 생성한다(글자수가 아니라 문장 완결을 기준으로 멈추기 위함).
 const CHAT_SEGMENT_MAX_OUTPUT_TOKENS = 1024;
-// 한 응답에서 이어 생성할 최대 세그먼트 수 — 폭주 방지 안전 상한.
-const CHAT_MAX_SEGMENTS = 5;
+// 한 응답에서 이어 생성할 최대 세그먼트 수. 5 → 2: 길게 이어 붙이며 답이 수천 자로 늘어나
+// "너무 길어서 못 읽겠다"는 VOC가 있었다. 끊긴 문장을 마무리하는 한 번만 허용한다.
+const CHAT_MAX_SEGMENTS = 2;
 // 이 길이를 넘는 응답은 정상 대화가 아닐 가능성이 높다 (프롬프트 되뱉음 등).
 // 차단하지는 않고 경고만 남긴다 — 정상적으로 긴 답변도 있을 수 있으므로.
 const CHAT_REPLY_LENGTH_WARN_CHARS = 2000;
@@ -159,6 +160,15 @@ export class ChatService {
         system,
         messages,
         maxOutputTokens: CHAT_SEGMENT_MAX_OUTPUT_TOKENS,
+        // Gemini Flash의 내부 사고(thinking)를 끈다 — 첫 글자까지 기다리는 시간이 줄고
+        // 사고 토큰이 출력 상한을 먹어 문장이 끊기는 일도 막는다. (Pro 계열은 0 불가라 Flash만)
+        ...(this.aiConfig.chatModelId.includes('flash')
+          ? {
+              providerOptions: {
+                google: { thinkingConfig: { thinkingBudget: 0 } },
+              },
+            }
+          : {}),
       });
 
       let segmentText = '';
