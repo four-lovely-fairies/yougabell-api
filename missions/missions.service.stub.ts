@@ -256,6 +256,11 @@ export function createPrismaStub(options: {
         return Promise.resolve(options.updatedExecution);
       },
     },
+    favoriteMission: {
+      findUnique: () => Promise.resolve(null),
+      findMany: () => Promise.resolve([]),
+      count: () => Promise.resolve(0),
+    },
     missionFeedback: {
       upsert: (args: unknown) => {
         options.onFeedbackUpsert?.(args);

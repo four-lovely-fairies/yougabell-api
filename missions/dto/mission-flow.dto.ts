@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
@@ -58,6 +59,18 @@ export class CurrentMissionDetailDto {
 
   @ApiProperty({ enum: ['not_started', 'in_progress', 'completed'] })
   status!: 'not_started' | 'in_progress' | 'completed';
+
+  @ApiProperty({ description: '관심 놀이로 저장했는지' })
+  isFavorite!: boolean;
+}
+
+// 오늘 이미 완료한 실행 — 놀이 상세 재진입 시 "피드백 작성하기" 노출 여부 판단용.
+export class CompletedMissionExecutionDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  hasFeedback!: boolean;
 }
 
 export class ActiveMissionExecutionDto {
@@ -98,6 +111,9 @@ export class GetCurrentMissionResponseDto {
 
   @ApiProperty({ type: ActiveMissionExecutionDto, nullable: true })
   activeExecution!: ActiveMissionExecutionDto | null;
+
+  @ApiProperty({ type: CompletedMissionExecutionDto, nullable: true })
+  completedExecution!: CompletedMissionExecutionDto | null;
 }
 
 export class StartMissionExecutionDto {
@@ -175,6 +191,15 @@ export class MissionExecutionActionBodyDto {
   @IsString()
   @IsIn(['pause', 'resume', 'complete', 'early_complete'])
   action!: 'pause' | 'resume' | 'complete' | 'early_complete';
+
+  // 타이머 없이 "놀이 다 했어요"로 완료할 때, 놀이 상세 화면에 들어온 뒤 버튼을 누를 때까지 걸린 시간(초).
+  // complete에서만 쓰이고, 서버가 잰 시간보다 길 때만 반영한다(미션 시간으로 상한).
+  @ApiPropertyOptional({ minimum: 0, maximum: 86400 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(86400)
+  elapsedSeconds?: number;
 }
 
 export class MissionExecutionEffectDto {
@@ -274,4 +299,129 @@ export class MissionFeedbackResponseDto {
 export class UpsertMissionFeedbackResponseDto {
   @ApiProperty({ type: MissionFeedbackResponseDto })
   feedback!: MissionFeedbackResponseDto;
+}
+
+// ============================================================
+// 관심 놀이 · 놀이 내역 목록 공통 쿼리
+// ============================================================
+
+export class MissionLibraryQueryDto {
+  @ApiPropertyOptional({ enum: ['latest', 'oldest'], default: 'latest' })
+  @IsOptional()
+  @IsIn(['latest', 'oldest'])
+  order?: 'latest' | 'oldest';
+
+  @ApiPropertyOptional({ description: '놀이 제목 검색어', maxLength: 50 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  q?: string;
+
+  @ApiPropertyOptional({
+    description: '발달 영역 id (social, language, cognitive, physical)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  categoryId?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ minimum: 0, default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
+}
+
+export class MissionHistoryQueryDto extends MissionLibraryQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: '없으면 모든 아이' })
+  @IsOptional()
+  @IsUUID()
+  childId?: string;
+}
+
+export class MissionLibraryItemDto {
+  @ApiProperty({ format: 'uuid' })
+  missionId!: string;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiProperty()
+  shortTitle!: string;
+
+  @ApiProperty()
+  description!: string;
+
+  @ApiProperty()
+  durationMinutes!: number;
+
+  @ApiProperty()
+  durationLabel!: string;
+
+  @ApiProperty()
+  categoryId!: string;
+
+  @ApiProperty()
+  categoryLabel!: string;
+
+  @ApiProperty()
+  isFavorite!: boolean;
+}
+
+export class FavoriteMissionItemDto extends MissionLibraryItemDto {
+  @ApiProperty({ format: 'date-time' })
+  savedAt!: string;
+}
+
+export class ListFavoriteMissionsResponseDto {
+  @ApiProperty({ type: [FavoriteMissionItemDto] })
+  items!: FavoriteMissionItemDto[];
+
+  @ApiProperty()
+  total!: number;
+}
+
+export class MissionHistoryItemDto extends MissionLibraryItemDto {
+  @ApiProperty({ format: 'uuid' })
+  executionId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  childId!: string;
+
+  @ApiProperty({ enum: ['completed', 'early_completed'] })
+  status!: 'completed' | 'early_completed';
+
+  @ApiProperty({ format: 'date-time' })
+  completedAt!: string;
+
+  @ApiProperty({ type: Number, nullable: true })
+  actualDurationSeconds!: number | null;
+
+  @ApiProperty()
+  hasFeedback!: boolean;
+}
+
+export class ListMissionHistoryResponseDto {
+  @ApiProperty({ type: [MissionHistoryItemDto] })
+  items!: MissionHistoryItemDto[];
+
+  @ApiProperty()
+  total!: number;
+}
+
+export class FavoriteMissionStateDto {
+  @ApiProperty({ format: 'uuid' })
+  missionId!: string;
+
+  @ApiProperty()
+  isFavorite!: boolean;
 }
