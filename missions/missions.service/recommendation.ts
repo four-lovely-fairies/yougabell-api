@@ -104,6 +104,7 @@ export async function findCurrentMission(
 ): Promise<{
   mission: CurrentMissionRow;
   status: CurrentMissionStatus;
+  completedExecution: { id: string; hasFeedback: boolean } | null;
 } | null> {
   const todayKey = toSeoulDateKey(today);
   const todayStart = new Date(`${todayKey}T00:00:00+09:00`);
@@ -117,15 +118,26 @@ export async function findCurrentMission(
     },
     orderBy: { startedAt: 'desc' },
     select: {
+      id: true,
       status: true,
+      feedback: { select: { id: true } },
       mission: { select: CURRENT_MISSION_SELECT },
     },
   });
 
   if (existingExecution) {
+    const status = toCurrentMissionStatus(existingExecution.status);
     return {
       mission: existingExecution.mission,
-      status: toCurrentMissionStatus(existingExecution.status),
+      status,
+      // 오늘 이미 완료했으면 재진입 화면에서 피드백 작성 여부를 보여주기 위해 함께 내려준다.
+      completedExecution:
+        status === 'completed' && existingExecution.id
+          ? {
+              id: existingExecution.id,
+              hasFeedback: Boolean(existingExecution.feedback),
+            }
+          : null,
     };
   }
 
@@ -143,6 +155,7 @@ export async function findCurrentMission(
   return {
     mission,
     status: 'not_started',
+    completedExecution: null,
   };
 }
 

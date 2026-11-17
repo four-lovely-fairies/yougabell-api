@@ -29,6 +29,7 @@ export async function applyExecutionAction(
   execution: ExecutionForAction,
   action: MissionExecutionAction,
   now: Date,
+  clientElapsedSeconds?: number,
 ): Promise<ActionResult> {
   const totalElapsedSeconds = getCurrentElapsedSeconds(execution, now);
 
@@ -39,7 +40,13 @@ export async function applyExecutionAction(
     return resumeExecution(prisma, execution, now);
   }
   if (action === 'complete') {
-    return completeExecution(prisma, execution, now, totalElapsedSeconds);
+    // 타이머 없이 완료하면 서버 기록은 거의 0초라, 화면에서 보낸 시간이 더 길면 그 시간을 쓴다.
+    return completeExecution(
+      prisma,
+      execution,
+      now,
+      Math.max(totalElapsedSeconds, clientElapsedSeconds ?? 0),
+    );
   }
   return earlyCompleteExecution(prisma, execution, now, totalElapsedSeconds);
 }

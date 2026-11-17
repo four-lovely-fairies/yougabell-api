@@ -12,6 +12,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   GetActiveMissionExecutionQueryDto,
   GetCurrentMissionQueryDto,
+  MissionHistoryQueryDto,
+  MissionLibraryQueryDto,
   StartMissionExecutionDto,
   UpsertMissionFeedbackDto,
 } from '../dto/mission-flow.dto';
@@ -39,6 +41,12 @@ import {
   normalizeFeedbackNote,
   toMissionFeedbackResponse,
 } from './feedback.utils';
+import {
+  isFavoriteMission,
+  listFavoriteMissions,
+  listMissionHistory,
+  setFavoriteMission,
+} from './library';
 import { findCurrentMission, toSeoulDateKey } from './recommendation';
 import {
   ACTIVE_EXECUTION_SELECT,
@@ -120,11 +128,29 @@ export class MissionsService {
         categoryLabel: currentMission.mission.category.label,
         sourceLabel: currentMission.mission.sources[0]?.citation ?? '출처 없음',
         status: currentMission.status,
+        isFavorite: await isFavoriteMission(
+          this.prisma,
+          userId,
+          currentMission.mission.id,
+        ),
       },
       activeExecution: activeExecution
         ? toActiveExecution(activeExecution, new Date())
         : null,
+      completedExecution: currentMission.completedExecution,
     };
+  }
+
+  listFavoriteMissions(userId: string, query: MissionLibraryQueryDto) {
+    return listFavoriteMissions(this.prisma, userId, query);
+  }
+
+  setFavoriteMission(userId: string, missionId: string, favorite: boolean) {
+    return setFavoriteMission(this.prisma, userId, missionId, favorite);
+  }
+
+  listMissionHistory(userId: string, query: MissionHistoryQueryDto) {
+    return listMissionHistory(this.prisma, userId, query);
   }
 
   async startMissionExecution(userId: string, dto: StartMissionExecutionDto) {
@@ -196,6 +222,7 @@ export class MissionsService {
     userId: string,
     executionId: string,
     action: MissionExecutionAction,
+    clientElapsedSeconds?: number,
   ) {
     const execution = await this.prisma.missionExecution.findFirst({
       where: {
@@ -215,7 +242,13 @@ export class MissionsService {
       });
     }
 
-    return applyExecutionAction(this.prisma, execution, action, new Date());
+    return applyExecutionAction(
+      this.prisma,
+      execution,
+      action,
+      new Date(),
+      clientElapsedSeconds,
+    );
   }
 
   async getMissionExecutionEffect(userId: string, executionId: string) {

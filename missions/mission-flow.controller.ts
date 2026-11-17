@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -16,7 +17,12 @@ import {
   GetActiveMissionExecutionQueryDto,
   GetCurrentMissionQueryDto,
   GetCurrentMissionResponseDto,
+  FavoriteMissionStateDto,
   GetMissionExecutionEffectResponseDto,
+  ListFavoriteMissionsResponseDto,
+  ListMissionHistoryResponseDto,
+  MissionHistoryQueryDto,
+  MissionLibraryQueryDto,
   MissionExecutionActionBodyDto,
   MissionExecutionSnapshotResponseDto,
   ResetMissionExecutionDto,
@@ -41,6 +47,44 @@ export class MissionFlowController {
     @Query() query: GetCurrentMissionQueryDto,
   ) {
     return this.missionsService.getCurrentMission(userId, query);
+  }
+
+  // 관심 놀이 목록
+  @Get('missions/favorites')
+  @ApiOkResponse({ type: ListFavoriteMissionsResponseDto })
+  listFavoriteMissions(
+    @CurrentUserId() userId: string,
+    @Query() query: MissionLibraryQueryDto,
+  ) {
+    return this.missionsService.listFavoriteMissions(userId, query);
+  }
+
+  @Put('missions/:id/favorite')
+  @ApiOkResponse({ type: FavoriteMissionStateDto })
+  addFavoriteMission(
+    @CurrentUserId() userId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.missionsService.setFavoriteMission(userId, id, true);
+  }
+
+  @Delete('missions/:id/favorite')
+  @ApiOkResponse({ type: FavoriteMissionStateDto })
+  removeFavoriteMission(
+    @CurrentUserId() userId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.missionsService.setFavoriteMission(userId, id, false);
+  }
+
+  // 놀이 내역 — 완료한 놀이 목록. ':id' 경로보다 먼저 선언해 겹치지 않게 한다.
+  @Get('mission-executions/history')
+  @ApiOkResponse({ type: ListMissionHistoryResponseDto })
+  listMissionHistory(
+    @CurrentUserId() userId: string,
+    @Query() query: MissionHistoryQueryDto,
+  ) {
+    return this.missionsService.listMissionHistory(userId, query);
   }
 
   @Post('mission-executions')
@@ -84,6 +128,7 @@ export class MissionFlowController {
       userId,
       id,
       body.action,
+      body.elapsedSeconds,
     );
   }
 
