@@ -131,7 +131,12 @@ export async function listMissionHistory(
   const where: Prisma.MissionExecutionWhereInput = {
     userId,
     status: { in: ['completed', 'early_completed'] },
-    completedAt: { not: null },
+    // 기간 조회 — from 포함, to 미포함. 둘 다 없으면 전체.
+    completedAt: {
+      not: null,
+      ...(query.from ? { gte: new Date(query.from) } : {}),
+      ...(query.to ? { lt: new Date(query.to) } : {}),
+    },
     child: { deletedAt: null },
     ...(query.childId ? { childId: query.childId } : {}),
     mission: missionFilter(query),
