@@ -116,6 +116,35 @@ void describe('favorite missions', () => {
 });
 
 void describe('mission history', () => {
+  void it('filters by completion period when from/to are given', async () => {
+    const { prisma, calls } = createPrisma({});
+    await listMissionHistory(prisma, 'user-1', {
+      from: '2026-11-01T00:00:00+09:00',
+      to: '2026-12-01T00:00:00+09:00',
+    });
+    const args = calls['execution.findMany'][0] as {
+      where: { completedAt: { not: null; gte: Date; lt: Date } };
+    };
+    assert.equal(args.where.completedAt.not, null);
+    assert.equal(
+      args.where.completedAt.gte.toISOString(),
+      new Date('2026-11-01T00:00:00+09:00').toISOString(),
+    );
+    assert.equal(
+      args.where.completedAt.lt.toISOString(),
+      new Date('2026-12-01T00:00:00+09:00').toISOString(),
+    );
+  });
+
+  void it('keeps all completed plays without a period', async () => {
+    const { prisma, calls } = createPrisma({});
+    await listMissionHistory(prisma, 'user-1', {});
+    const args = calls['execution.findMany'][0] as {
+      where: { completedAt: Record<string, unknown> };
+    };
+    assert.deepEqual(args.where.completedAt, { not: null });
+  });
+
   void it('lists completed plays with favorite and feedback flags', async () => {
     const completedAt = new Date('2026-11-17T10:05:00+09:00');
     const { prisma, calls } = createPrisma({

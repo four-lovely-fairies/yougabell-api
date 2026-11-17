@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDateString,
   IsIn,
   IsInt,
   IsOptional,
@@ -346,6 +347,23 @@ export class MissionHistoryQueryDto extends MissionLibraryQueryDto {
   @IsOptional()
   @IsUUID()
   childId?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      '이 시각 이후(포함)에 완료한 놀이만 — 예: 달력에서 고른 달의 1일 0시',
+  })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: '이 시각 이전(미포함)에 완료한 놀이만 — 예: 다음 달 1일 0시',
+  })
+  @IsOptional()
+  @IsDateString()
+  to?: string;
 }
 
 export class MissionLibraryItemDto {
