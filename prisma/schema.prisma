@@ -285,14 +285,13 @@ model Referral {
 /// 4명 달성 후 쿠폰 받을 휴대폰 번호를 입력한 사람. 운영자가 이 표를 보고 쿠폰을 보낸다.
 /// 한 사람당 1번(userId unique). 보낸 뒤 sentAt을 채운다.
 model ReferralRewardClaim {
-  id              String    @id @default(uuid()) @db.Uuid
-  userId          String    @unique @db.Uuid
-  phone           String // 숫자만 (01012345678)
-  inviteCount     Int // 신청 시점 가입한 친구 수
-  privacyAgreedAt DateTime // [필수] 개인정보 수집·이용 동의 시각
-  sentAt          DateTime? // 운영자 쿠폰 발송 시각 (null = 발송 전)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @unique @db.Uuid
+  phone       String // 숫자만 (01012345678)
+  inviteCount Int // 신청 시점 가입한 친구 수
+  sentAt      DateTime? // 운영자 쿠폰 발송 시각 (null = 발송 전)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

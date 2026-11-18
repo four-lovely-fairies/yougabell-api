@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Equals, IsString, MaxLength } from 'class-validator';
+import { IsString, MaxLength } from 'class-validator';
 
 export class CheckInviteCodeRequestDto {
   @ApiProperty({ example: 'YB4K2', maxLength: 20 })
@@ -46,8 +46,4 @@ export class ClaimReferralRewardRequestDto {
   @IsString()
   @MaxLength(20)
   phone!: string;
-
-  @ApiProperty({ description: '[필수] 개인정보 수집·이용 동의. true만 허용.' })
-  @Equals(true, { message: 'privacy consent is required' })
-  privacyAgreed!: boolean;
 }

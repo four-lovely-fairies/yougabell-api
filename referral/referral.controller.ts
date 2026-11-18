@@ -55,6 +55,6 @@ export class ReferralController {
     @CurrentUserId() userId: string,
     @Body() body: ClaimReferralRewardRequestDto,
   ) {
-    return this.service.claimReward(userId, body.phone, body.privacyAgreed);
+    return this.service.claimReward(userId, body.phone);
   }
 }

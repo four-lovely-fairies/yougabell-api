@@ -211,11 +211,11 @@ export class ReferralService {
     }
   }
 
-  /** 08 쿠폰 받기 — 휴대폰 번호 입력. 4명 이상 가입했고 아직 신청 안 한 사람만. */
-  async claimReward(userId: string, rawPhone: string, privacyAgreed: boolean) {
-    if (!privacyAgreed) {
-      throw new BadRequestException({ code: 'PRIVACY_CONSENT_REQUIRED' });
-    }
+  /**
+   * 08 쿠폰 받기 — 휴대폰 번호 입력. 4명 이상 가입했고 아직 신청 안 한 사람만.
+   * 개인정보 수집·이용은 회원가입(약관) 때 필수로 받으므로 따로 받지 않는다.
+   */
+  async claimReward(userId: string, rawPhone: string) {
     const phone = normalizePhone(rawPhone);
     if (!phone) throw new BadRequestException({ code: 'INVALID_PHONE' });
 
@@ -239,7 +239,6 @@ export class ReferralService {
         userId,
         phone,
         inviteCount: joinedCount,
-        privacyAgreedAt: new Date(),
       },
     });
     return {

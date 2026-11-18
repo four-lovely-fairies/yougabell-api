@@ -35,7 +35,6 @@ CREATE TABLE "public"."ReferralRewardClaim" (
     "userId" UUID NOT NULL,
     "phone" TEXT NOT NULL,
     "inviteCount" INTEGER NOT NULL,
-    "privacyAgreedAt" TIMESTAMP(3) NOT NULL,
     "sentAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,

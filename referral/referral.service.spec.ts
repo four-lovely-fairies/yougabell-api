@@ -133,9 +133,9 @@ void describe('ReferralService', () => {
         },
       },
     });
-    await assert.rejects(service.claimReward('me', '010-1234-5678', true));
+    await assert.rejects(service.claimReward('me', '010-1234-5678'));
     count = 4;
-    const claim = await service.claimReward('me', '010-1234-5678', true);
+    const claim = await service.claimReward('me', '010-1234-5678');
     assert.equal(claim.phone, '01012345678');
     assert.equal(saved[0].inviteCount, 4);
   });
