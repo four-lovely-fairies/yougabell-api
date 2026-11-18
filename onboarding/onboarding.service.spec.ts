@@ -25,6 +25,12 @@ const completeDto = {
   consents: { service: true, privacy: true, marketing: false },
 } as const;
 
+// 친구 초대 없음 — 초대 코드 없이 가입하는 기본 흐름
+const noReferral = {
+  recordSignup: () => Promise.resolve(null),
+  notifyInviter: () => Promise.resolve(),
+} as never;
+
 /** 동의 이력 stub — create 호출을 모아두고 findMany로 되돌려준다. */
 function consentStub() {
   const calls: Array<Record<string, unknown>> = [];
@@ -43,7 +49,7 @@ function consentStub() {
 void describe('OnboardingService', () => {
   void it('returns a non-onboarded placeholder for soft-deleted users', async () => {
     const deletedAt = new Date('2026-05-29T00:00:00.000Z');
-    const service = new OnboardingService({} as never);
+    const service = new OnboardingService({} as never, noReferral);
 
     const result = await service.getMe(
       {
@@ -155,7 +161,7 @@ void describe('OnboardingService', () => {
         callback(tx),
     };
 
-    const service = new OnboardingService(prisma as never);
+    const service = new OnboardingService(prisma as never, noReferral);
     const result = await service.complete('user-1', completeDto as never);
 
     assert.equal(chatDeleteCalls.length, 1);
@@ -256,7 +262,7 @@ void describe('OnboardingService', () => {
         callback(tx),
     };
 
-    const service = new OnboardingService(prisma as never);
+    const service = new OnboardingService(prisma as never, noReferral);
     await service.complete('user-1', {
       ...completeDto,
       notification: undefined,
@@ -303,7 +309,7 @@ void describe('OnboardingService', () => {
         callback(tx),
     };
 
-    const service = new OnboardingService(prisma as never);
+    const service = new OnboardingService(prisma as never, noReferral);
     await service.complete('user-1', {
       ...completeDto,
       consents: undefined,

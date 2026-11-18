@@ -15,6 +15,7 @@ const NOTIFICATION_TYPES = [
   'chat_follow_up',
   'system_notice',
   'inquiry_answered',
+  'referral_joined',
 ] as const satisfies NotificationType[];
 const NOTIFICATION_ACTION_TYPES = [
   'none',
