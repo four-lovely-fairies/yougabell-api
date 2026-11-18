@@ -8,6 +8,7 @@ import {
 } from '../consents/consents.repository';
 import { defaultNotificationTime } from '../notifications/notification-dispatch.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReferralService } from '../referral/referral.service';
 import { CompleteOnboardingDto } from './dto/complete-onboarding.dto';
 
 const NOTIFICATION_TYPES: NotificationPreferenceType[] = [
@@ -45,7 +46,10 @@ async function recordOnboardingConsents(
 
 @Injectable()
 export class OnboardingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly referral: ReferralService,
+  ) {}
 
   /**
    * 온보딩 일괄 완료 처리.
@@ -53,7 +57,8 @@ export class OnboardingService {
    * 이미 완료(`onboardedAt != null`)된 사용자는 409.
    */
   async complete(userId: string, dto: CompleteOnboardingDto) {
-    return this.prisma.$transaction(async (tx) => {
+    let inviterId: string | null = null;
+    const me = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: { id: true, onboardedAt: true, deletedAt: true },
@@ -138,8 +143,21 @@ export class OnboardingService {
 
       await recordOnboardingConsents(tx, userId, dto.consents);
 
+      // 친구 초대: 탈퇴 후 다시 가입한 사람은 "이미 가입한 친구"라 인정하지 않는다.
+      inviterId = await this.referral.recordSignup(
+        tx,
+        userId,
+        dto.inviteCode,
+        !user?.deletedAt,
+      );
+
       return this.getMe(tx, userId);
     });
+
+    if (inviterId) {
+      await this.referral.notifyInviter(inviterId, dto.parent.name);
+    }
+    return me;
   }
 
   /**

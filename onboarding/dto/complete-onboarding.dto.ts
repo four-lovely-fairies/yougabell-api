@@ -182,4 +182,14 @@ export class CompleteOnboardingDto {
   @ValidateNested()
   @Type(() => ConsentsDto)
   consents?: ConsentsDto;
+
+  @ApiPropertyOptional({
+    example: 'YB4K2',
+    description:
+      '친구에게 받은 초대 코드 (선택). 처음 가입하는 사람만 초대 1명으로 인정. 틀린 코드여도 가입은 막지 않는다.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  inviteCode?: string;
 }

@@ -17,6 +17,7 @@ import { MissionsModule } from './missions/missions.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReferralModule } from './referral/referral.module';
 import { RoadmapModule } from './roadmap/roadmap.module';
 import { StatsModule } from './stats/stats.module';
 import { UsersModule } from './users/users.module';
@@ -42,6 +43,7 @@ import { WeeklyReportsModule } from './weekly-reports/weekly-reports.module';
     ChatModule,
     StatsModule,
     InquiriesModule,
+    ReferralModule,
   ],
   controllers: [AppController],
   providers: [

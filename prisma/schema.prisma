@@ -31,6 +31,8 @@ model User {
   notificationPromptShownAt DateTime?
   interests                 InterestId[]      @default([]) // 설정/온보딩 — 최대 3개(app-level 검증)
   onboardedAt               DateTime? // 온보딩 완료 시각 (null = 미완료)
+  // 친구 초대(레퍼럴) 내 초대 코드. 처음 조회할 때 발급 (docs/features/20261118-referral.md).
+  referralCode              String?           @unique
   parentingStyleId          String? // future — see docs/schema/10-parenting-style.md
   // 계정 탈퇴 (docs/features/20260519-settings.md §3.1): soft delete. 물리 삭제 배치는 후속 작업.
   deletedAt                 DateTime?
@@ -53,6 +55,9 @@ model User {
   weeklyReports               WeeklyReport[]
   consents                    UserConsent[]
   inquiries                   Inquiry[]
+  referralsSent               Referral[]                   @relation("ReferralInviter")
+  referralReceived            Referral?                    @relation("ReferralInvitee")
+  referralRewardClaim         ReferralRewardClaim?
 
   @@index([deletedAt])
 }
@@ -230,6 +235,7 @@ enum NotificationType {
   chat_follow_up
   system_notice
   inquiry_answered
+  referral_joined // 내 초대 코드로 친구가 가입함
 }
 
 enum NotificationActionType {
@@ -255,6 +261,41 @@ enum NotificationTargetType {
 enum NotificationPriority {
   normal
   high
+}
+
+// ============================================================
+// Referral (친구 초대) — docs/features/20261118-referral.md
+// ============================================================
+
+/// 누가 어떤 초대 코드로 가입했는지. "4명 가입"을 서버가 세기 위한 최소 기록.
+/// 초대받은 사람은 한 번만 기록된다(inviteeId unique) — 처음 가입 완료(온보딩) 때만 생성.
+model Referral {
+  id        String   @id @default(uuid()) @db.Uuid
+  inviterId String   @db.Uuid
+  inviteeId String   @unique @db.Uuid
+  code      String
+  createdAt DateTime @default(now())
+
+  inviter User @relation("ReferralInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee User @relation("ReferralInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  @@index([inviterId, createdAt])
+}
+
+/// 4명 달성 후 쿠폰 받을 휴대폰 번호를 입력한 사람. 운영자가 이 표를 보고 쿠폰을 보낸다.
+/// 한 사람당 1번(userId unique). 보낸 뒤 sentAt을 채운다.
+model ReferralRewardClaim {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @unique @db.Uuid
+  phone       String // 숫자만 (01012345678)
+  inviteCount Int // 신청 시점 가입한 친구 수
+  sentAt      DateTime? // 운영자 쿠폰 발송 시각 (null = 발송 전)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sentAt, createdAt])
 }
 
 // ============================================================
