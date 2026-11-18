@@ -115,7 +115,7 @@ void describe('ReferralService', () => {
     );
     await service.notifyInviter('inviter', '하윤맘');
     assert.equal(notifications[0].type, 'referral_joined');
-    assert.equal(notifications[0].targetUrl, '/referral');
+    assert.equal(notifications[0].targetUrl, '/referral?from=notification');
     assert.equal(notifications[0].priority, 'high');
     assert.equal(pushed.length, 1);
   });

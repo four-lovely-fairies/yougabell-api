@@ -10,7 +10,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 /** 쿠폰을 받기 위해 가입해야 하는 친구 수 */
 export const REFERRAL_GOAL = 4;
-export const REFERRAL_PATH = '/referral';
+// 알림에서 들어온 걸 로그(Referral Viewed entry=notification)로 구분하려고 from을 붙인다.
+export const REFERRAL_PATH = '/referral?from=notification';
 
 // 헷갈리는 글자(0/O, 1/I/L)는 뺀다 — 친구가 손으로 옮겨 적는 코드라서.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
