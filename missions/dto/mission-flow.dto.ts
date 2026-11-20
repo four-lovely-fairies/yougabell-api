@@ -380,6 +380,9 @@ export class MissionLibraryItemDto {
   @ApiProperty({ description: '놀이 출처 (첫 번째 출처, 없으면 출처 없음)' })
   sourceLabel!: string;
 
+  @ApiProperty({ type: String, nullable: true, description: '놀이 목표 (예: #순서기다리기 #충동조절)' })
+  goalLabel!: string | null;
+
   @ApiProperty()
   title!: string;
 

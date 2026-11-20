@@ -73,6 +73,7 @@ void describe('favorite missions', () => {
       categoryId: 'language',
       categoryLabel: '언어발달',
       sourceLabel: 'CDC 2022',
+      goalLabel: null,
       isFavorite: true,
       savedAt: savedAt.toISOString(),
     });
