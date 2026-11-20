@@ -58,6 +58,13 @@ export class CurrentMissionDetailDto {
   @ApiProperty()
   sourceLabel!: string;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "오늘의 놀이 '목표' 줄 (예: #상호작용주도 #사회적기대)",
+  })
+  goalLabel!: string | null;
+
   @ApiProperty({ enum: ['not_started', 'in_progress', 'completed'] })
   status!: 'not_started' | 'in_progress' | 'completed';
 

@@ -127,6 +127,8 @@ export class MissionsService {
         durationLabel: `${currentMission.mission.durationMinutes}분`,
         categoryLabel: currentMission.mission.category.label,
         sourceLabel: currentMission.mission.sources[0]?.citation ?? '출처 없음',
+        // 오늘의 놀이 '목표' 줄 (예: #상호작용주도 #사회적기대). 없으면 웹이 줄을 숨긴다.
+        goalLabel: currentMission.mission.goal,
         status: currentMission.status,
         isFavorite: await isFavoriteMission(
           this.prisma,

@@ -6,6 +6,7 @@ export const CURRENT_MISSION_SELECT = {
   description: true,
   subThemeLabel: true,
   durationMinutes: true,
+  goal: true,
   category: { select: { label: true } },
   sources: { select: { citation: true }, orderBy: { citation: 'asc' } },
 } satisfies Prisma.MissionSelect;
