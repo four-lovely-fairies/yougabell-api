@@ -1,4 +1,11 @@
-import { Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -10,6 +17,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   WeeklyReportCurrentResponseDto,
   WeeklyReportDetailDto,
+  WeeklyReportListResponseDto,
   WeeklyReportUnviewedStatusDto,
   WeeklyReportViewedResponseDto,
 } from './dto/weekly-report-response.dto';
@@ -17,6 +25,7 @@ import { WeeklyReportsService } from './weekly-reports.service';
 import type {
   WeeklyReportCurrentResponse,
   WeeklyReportDetail,
+  WeeklyReportListResponse,
   WeeklyReportUnviewedStatus,
   WeeklyReportViewedResponse,
 } from './weekly-reports.types';
@@ -27,6 +36,16 @@ import type {
 @UseGuards(JwtAuthGuard)
 export class WeeklyReportsController {
   constructor(private readonly weeklyReportsService: WeeklyReportsService) {}
+
+  @Get()
+  @ApiQuery({ name: 'childId', required: false, type: String, format: 'uuid' })
+  @ApiOkResponse({ type: WeeklyReportListResponseDto })
+  list(
+    @CurrentUserId() userId: string,
+    @Query('childId') childId?: string,
+  ): Promise<WeeklyReportListResponse> {
+    return this.weeklyReportsService.list(userId, { childId });
+  }
 
   @Get('current')
   @ApiQuery({ name: 'childId', required: false, type: String, format: 'uuid' })

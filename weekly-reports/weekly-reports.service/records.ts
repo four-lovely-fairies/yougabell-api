@@ -23,6 +23,15 @@ export type WeeklyReportsPrisma = {
   };
   weeklyReport: {
     findFirst(args: unknown): Promise<WeeklyReportRecord | null>;
+    findMany(args: unknown): Promise<
+      Array<{
+        id: string;
+        weekStart: Date;
+        weekEnd: Date;
+        generatedAt: Date;
+        viewedAt: Date | null;
+      }>
+    >;
     updateMany(args: unknown): Promise<{ count: number }>;
     delete(args: unknown): Promise<unknown>;
     create(args: unknown): Promise<unknown>;

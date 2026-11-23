@@ -17,6 +17,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   WeeklyReportCurrentResponse,
   WeeklyReportDetail,
+  WeeklyReportListResponse,
   WeeklyReportUnviewedStatus,
   WeeklyReportViewedResponse,
 } from '../weekly-reports.types';
@@ -31,6 +32,7 @@ import {
   addDays,
   getPreviousCompletedWeekStart,
   parseDateOnly,
+  toSeoulDateKey,
   toUtcDateOnly,
 } from './date.utils';
 import type {
@@ -133,6 +135,49 @@ export class WeeklyReportsService {
     }
 
     return toDetail(report);
+  }
+
+  /** 아이별로 발행된 리포트를 최신순으로. 상세 내용은 getById/getCurrent로 따로 받는다. */
+  async list(
+    userId: string,
+    query: { childId?: string },
+  ): Promise<WeeklyReportListResponse> {
+    const [defaultChild] = query.childId
+      ? []
+      : await this.prisma.child.findMany({
+          where: { userId, deletedAt: null },
+          orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+          select: { id: true },
+          take: 1,
+        });
+    const childId = query.childId ?? defaultChild?.id ?? null;
+
+    if (!childId) {
+      return { childId: null, items: [] };
+    }
+
+    const rows = await this.prisma.weeklyReport.findMany({
+      where: { userId, childId, child: { deletedAt: null } },
+      orderBy: { weekStart: 'desc' },
+      select: {
+        id: true,
+        weekStart: true,
+        weekEnd: true,
+        generatedAt: true,
+        viewedAt: true,
+      },
+    });
+
+    return {
+      childId,
+      items: rows.map((row) => ({
+        id: row.id,
+        weekStart: toSeoulDateKey(row.weekStart),
+        weekEnd: toSeoulDateKey(row.weekEnd),
+        generatedAt: row.generatedAt.toISOString(),
+        viewed: row.viewedAt !== null,
+      })),
+    };
   }
 
   async getUnviewedStatus(

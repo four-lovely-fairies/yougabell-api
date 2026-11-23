@@ -19,6 +19,20 @@ export type WeeklyReportCurrentResponse = {
   };
 };
 
+/** 지난 리포트 고르기(리포트 화면 상단 "N월 N일 발행" 드롭다운)용 목록 한 줄 */
+export type WeeklyReportListItem = {
+  id: string;
+  weekStart: string;
+  weekEnd: string;
+  generatedAt: string;
+  viewed: boolean;
+};
+
+export type WeeklyReportListResponse = {
+  childId: string | null;
+  items: WeeklyReportListItem[];
+};
+
 export type WeeklyReportUnviewedStatus = {
   hasUnviewedReport: boolean;
 };

@@ -32,6 +32,84 @@ function createService(
 }
 
 void describe('WeeklyReportsService', () => {
+  void it('lists reports for the default child, newest first', async () => {
+    const listQueries: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [createChild()],
+      report: null,
+      listRows: [
+        {
+          id: 'report-2',
+          weekStart: new Date('2026-11-10T00:00:00.000Z'),
+          weekEnd: new Date('2026-11-16T00:00:00.000Z'),
+          generatedAt: new Date('2026-11-16T22:00:00.000Z'),
+          viewedAt: null,
+        },
+        {
+          id: 'report-1',
+          weekStart: new Date('2026-11-03T00:00:00.000Z'),
+          weekEnd: new Date('2026-11-09T00:00:00.000Z'),
+          generatedAt: new Date('2026-11-09T22:00:00.000Z'),
+          viewedAt: new Date('2026-11-10T01:00:00.000Z'),
+        },
+      ],
+      onListReports: (args) => listQueries.push(args),
+    });
+    const service = createService(prisma);
+
+    const result = await service.list('user-1', {});
+
+    assert.deepEqual(result, {
+      childId: 'child-1',
+      items: [
+        {
+          id: 'report-2',
+          weekStart: '2026-11-10',
+          weekEnd: '2026-11-16',
+          generatedAt: '2026-11-16T22:00:00.000Z',
+          viewed: false,
+        },
+        {
+          id: 'report-1',
+          weekStart: '2026-11-03',
+          weekEnd: '2026-11-09',
+          generatedAt: '2026-11-09T22:00:00.000Z',
+          viewed: true,
+        },
+      ],
+    });
+    assert.deepEqual(listQueries[0], {
+      where: {
+        userId: 'user-1',
+        childId: 'child-1',
+        child: { deletedAt: null },
+      },
+      orderBy: { weekStart: 'desc' },
+      select: {
+        id: true,
+        weekStart: true,
+        weekEnd: true,
+        generatedAt: true,
+        viewedAt: true,
+      },
+    });
+  });
+
+  void it('returns an empty list without querying reports when no child exists', async () => {
+    const listQueries: unknown[] = [];
+    const prisma = createPrismaStub({
+      children: [],
+      report: null,
+      onListReports: (args) => listQueries.push(args),
+    });
+    const service = createService(prisma);
+
+    const result = await service.list('user-1', {});
+
+    assert.deepEqual(result, { childId: null, items: [] });
+    assert.equal(listQueries.length, 0);
+  });
+
   void it('reports an unviewed report only for the current report week', async () => {
     const report = createReport();
     const prisma = createPrismaStub({ children: [], report });
@@ -804,6 +882,8 @@ function createPrismaStub({
   onUpdateReports,
   onFindChildren,
   onFindReport,
+  listRows = [],
+  onListReports,
 }: {
   children: Awaited<ReturnType<WeeklyReportsPrisma['child']['findMany']>>;
   report: Awaited<ReturnType<WeeklyReportsPrisma['weeklyReport']['findFirst']>>;
@@ -816,6 +896,10 @@ function createPrismaStub({
   onUpdateReports?: (args: unknown) => void;
   onFindChildren?: (args: unknown) => void;
   onFindReport?: (args: unknown) => void;
+  listRows?: Awaited<
+    ReturnType<WeeklyReportsPrisma['weeklyReport']['findMany']>
+  >;
+  onListReports?: (args: unknown) => void;
 }): WeeklyReportsPrisma {
   let countCallIndex = 0;
   return {
@@ -829,6 +913,10 @@ function createPrismaStub({
       findFirst: (args: unknown) => {
         onFindReport?.(args);
         return Promise.resolve(report);
+      },
+      findMany: (args: unknown) => {
+        onListReports?.(args);
+        return Promise.resolve(listRows);
       },
       updateMany: (args: unknown) => {
         onUpdateReports?.(args);
