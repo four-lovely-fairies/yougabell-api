@@ -182,3 +182,28 @@ export class WeeklyReportViewedResponseDto {
   @ApiProperty({ example: true })
   viewed!: true;
 }
+
+export class WeeklyReportListItemDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ example: '2026-11-10' })
+  weekStart!: string;
+
+  @ApiProperty({ example: '2026-11-16' })
+  weekEnd!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  generatedAt!: string;
+
+  @ApiProperty()
+  viewed!: boolean;
+}
+
+export class WeeklyReportListResponseDto {
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  childId!: string | null;
+
+  @ApiProperty({ type: [WeeklyReportListItemDto] })
+  items!: WeeklyReportListItemDto[];
+}
