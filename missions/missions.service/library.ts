@@ -13,6 +13,7 @@ const LIBRARY_MISSION_SELECT = {
   shortTitle: true,
   description: true,
   durationMinutes: true,
+  goal: true,
   categoryId: true,
   category: { select: { label: true } },
   sources: { select: { citation: true }, orderBy: { citation: 'asc' } },
@@ -35,6 +36,8 @@ const toLibraryItem = (mission: LibraryMissionRow, isFavorite: boolean) => ({
   categoryLabel: mission.category.label,
   // 오늘의 놀이(/missions/current)와 같은 규칙 — 첫 번째 출처, 없으면 '출처 없음'
   sourceLabel: mission.sources[0]?.citation ?? '출처 없음',
+  // 놀이 상세 '목표' 줄 (오늘의 놀이와 같은 값)
+  goalLabel: mission.goal ?? null,
   isFavorite,
 });
 
