@@ -62,6 +62,29 @@ model User {
   @@index([deletedAt])
 }
 
+/// 계정 탈퇴 사유 설문. 탈퇴 화면에서 고른 사유 + 직접 입력한 내용.
+///
+/// User와 FK를 걸지 않는다 — 물리 삭제 배치·온보딩 초기화로 User row가 지워져도
+/// 탈퇴 사유 통계는 남아야 하기 때문. userId는 참고용 값으로만 보관한다.
+model AccountDeletionReason {
+  id        String                    @id @default(uuid()) @db.Uuid
+  userId    String                    @db.Uuid
+  reason    AccountDeletionReasonCode
+  detail    String? // 직접 입력 내용 (최대 500자). "기타"일 때 주로 채워진다.
+  createdAt DateTime                  @default(now())
+
+  @@index([reason, createdAt])
+  @@index([userId])
+}
+
+enum AccountDeletionReasonCode {
+  rarely_use // 자주 사용하지 않아요
+  not_helpful // 육아에 큰 도움이 안 돼요
+  hard_to_use // 사용하기 불편하거나 오류가 많아요
+  privacy // 개인정보가 걱정돼요
+  other // 기타
+}
+
 /// 약관 동의 이력 (docs/features/20260729-consent-storage.md).
 ///
 /// **append-only** — 현재 상태를 덮어쓰지 않고 매번 새 row를 쌓는다. 마케팅 동의는

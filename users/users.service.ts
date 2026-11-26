@@ -145,14 +145,22 @@ export class UsersService {
         deletedAt: user.deletedAt.toISOString(),
       });
     }
+    const detail = dto.reason?.trim() || null;
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },
         data: {
           deletedAt: new Date(),
-          deletionReason: dto.reason ?? null,
+          deletionReason: detail,
         },
       });
+
+      // 탈퇴 사유 설문 — 고른 사유가 있을 때만 남긴다 (User가 물리 삭제돼도 유지).
+      if (dto.reasonCode) {
+        await tx.accountDeletionReason.create({
+          data: { userId, reason: dto.reasonCode, detail },
+        });
+      }
 
       // 탈퇴 계정에 더 이상 발송하거나 노출할 이유가 없는 전달 주소와 알림함은
       // soft delete 유예 기간과 관계없이 즉시 제거한다.
